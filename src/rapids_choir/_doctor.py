@@ -114,12 +114,16 @@ def run_doctor(device: str = "cuda:0") -> DoctorReport:
             bootstrap=profile.bootstrap,
             min_samples_leaf=profile.min_samples_leaf,
             min_samples_split=profile.min_samples_split,
+            min_impurity_decrease=profile.min_impurity_decrease,
             max_leaves=profile.max_leaves,
             max_samples=profile.max_samples,
+            max_batch_size=profile.max_batch_size,
+            oob_score=profile.oob_score,
             n_bins=profile.n_bins,
             n_streams=profile.n_streams,
             random_state=1,
-            output_type="cupy",
+            output_type=profile.output_type,
+            verbose=profile.verbose,
         )
         classifier.fit(features, labels, convert_dtype=False)
         predicted = classifier.predict(features, convert_dtype=False)

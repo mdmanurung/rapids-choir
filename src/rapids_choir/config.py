@@ -33,8 +33,13 @@ class RFProfile:
     bootstrap: bool = True
     min_samples_leaf: int = 1
     min_samples_split: int = 2
+    min_impurity_decrease: float = 0.0
     max_leaves: int = -1
     max_samples: float = 1.0
+    max_batch_size: int = 4096
+    oob_score: bool = False
+    verbose: bool = False
+    output_type: str = "cupy"
 
     def __post_init__(self) -> None:
         if self.n_bins not in {128, 256, 512}:
@@ -51,8 +56,16 @@ class RFProfile:
             raise InvalidConfigurationError("bootstrap is pinned to True")
         if self.min_samples_leaf != 1 or self.min_samples_split != 2:
             raise InvalidConfigurationError("minimum split/leaf sizes are pinned")
+        if self.min_impurity_decrease != 0.0:
+            raise InvalidConfigurationError("min_impurity_decrease is pinned to 0.0")
         if self.max_leaves != -1 or self.max_samples != 1.0:
             raise InvalidConfigurationError("leaf/sample limits are pinned")
+        if self.max_batch_size != 4096:
+            raise InvalidConfigurationError("max_batch_size is pinned to 4096")
+        if self.oob_score or self.verbose:
+            raise InvalidConfigurationError("oob_score and verbose are pinned to False")
+        if self.output_type != "cupy":
+            raise InvalidConfigurationError("output_type is pinned to 'cupy'")
 
 
 @dataclass(frozen=True, slots=True)

@@ -35,6 +35,8 @@ def test_rf_calibration_grid_is_closed() -> None:
     assert RFProfile(n_bins=512, max_depth=None, n_streams=4).n_bins == 512
     with pytest.raises(InvalidConfigurationError, match="n_bins"):
         RFProfile(n_bins=1024)
+    with pytest.raises(InvalidConfigurationError, match="max_batch_size"):
+        RFProfile(max_batch_size=1024)
 
 
 def test_rules_are_normalized_to_enum() -> None:
