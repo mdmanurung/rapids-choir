@@ -1,0 +1,34 @@
+name: rapids-choir-cu128
+channels:
+  - rapidsai
+  - conda-forge
+  - nvidia
+  - nodefaults
+dependencies:
+  - python=3.12
+  - cuda-version=12.8
+  - rapids=26.06
+  - cuml=26.06
+  - cugraph=26.06
+  - rmm=26.06
+  - anndata>=0.12,<0.13
+  - cupy>=13,<15
+  - scanpy>=1.10
+  - natsort
+  - scikit-misc>=0.1.3
+  - scikit-learn
+  - matplotlib>=3.4
+  - tqdm
+  - statsmodels>=0.12
+  - scikit-image
+  - docrep
+  - numpy>=2,<3
+  - pandas>=2.2,<3
+  - pyarrow>=19,<23
+  - scipy>=1.14,<2
+  - python-build>=1.2
+  - hatchling>=1.27
+  - mypy>=1.15
+  - pytest>=8.3
+  - pytest-cov>=6
+  - ruff>=0.11

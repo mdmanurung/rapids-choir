@@ -1,0 +1,5 @@
+# Generated for CPython 3.12 on Linux x86_64 from the official PyPI wheel.
+# Install only after the explicit Conda lock with:
+# python -m pip install --no-deps --require-hashes -r rapids-cu128-pip.lock
+rapids-singlecell-cu12==0.16.1 \
+    --hash=sha256:5f0e6477d2e740a92559928abb8f6c10900be2f448a55c3779fb7e1d9e989dce

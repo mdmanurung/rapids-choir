@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rapids-choir"
+version = "0.1.0.dev0"
+description = "Single-GPU CHOIR port for unimodal RNA AnnData workflows"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "M. D. Manurung" }]
+keywords = ["single-cell", "RNA-seq", "GPU", "RAPIDS", "clustering"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+  "anndata>=0.12,<0.13",
+  "numpy>=2.0,<3",
+  "pandas>=2.2,<3",
+  "pyarrow>=19,<23",
+  "scipy>=1.14,<2",
+]
+
+[project.optional-dependencies]
+test = [
+  "build>=1.2",
+  "mypy>=1.15",
+  "pytest>=8.3",
+  "pytest-cov>=6",
+  "ruff>=0.11",
+]
+
+[project.scripts]
+rapids-choir = "rapids_choir.cli:main"
+
+[project.urls]
+Documentation = "https://github.com/mdmanurung/rapids-choir"
+Issues = "https://github.com/mdmanurung/rapids-choir/issues"
+Source = "https://github.com/mdmanurung/rapids-choir"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rapids_choir"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/rapids_choir",
+  "/tests",
+  "/validation",
+  "/workflow",
+  "/docs",
+  "/Snakefile",
+  "/README.md",
+  "/LICENSE",
+  "/NOTICE",
+  "/CITATION.cff",
+  "/pyproject.toml",
+  "/renv.lock",
+]
+
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+markers = [
+  "gpu: requires a real supported CUDA GPU and the locked RAPIDS environment",
+  "reference: consumes frozen R-generated validation artifacts",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["rapids_choir"]
+mypy_path = "src"

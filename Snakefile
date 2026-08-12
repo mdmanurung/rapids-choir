@@ -22,9 +22,16 @@ REFERENCE_FILES = sorted(
     for path in Path("validation/reference/choir_v0_3_0").glob("**/*")
     if path.is_file()
 )
+STATIC_PACKAGE_FILES = sorted(
+    str(path)
+    for directory in ("src", "tests", "validation/scripts")
+    for path in Path(directory).glob("**/*")
+    if path.is_file()
+)
 rule all:
     input:
-        "validation/evidence/gate0.json"
+        "validation/evidence/gate0.json",
+        "validation/evidence/gate1_static.json",
 
 
 rule r_logic_fixtures:
@@ -72,3 +79,40 @@ rule gate0:
         "validation/logs/gate0.log",
     shell:
         "{config[python]} {input.script} --root . --fixtures validation/fixtures/generated --output {output} > {log} 2>&1"
+
+
+rule gate1_static:
+    input:
+        gate0="validation/evidence/gate0.json",
+        script="validation/scripts/run_gate1_static.py",
+        package=STATIC_PACKAGE_FILES,
+        project="pyproject.toml",
+        conda_lock="workflow/envs/rapids-cu128-linux-64.lock",
+        pip_lock="workflow/envs/rapids-cu128-pip.lock",
+    output:
+        "validation/evidence/gate1_static.json",
+    log:
+        "validation/logs/gate1_static.log",
+    shell:
+        "{config[gpu_python]} {input.script} --root . --output {output} --log {log}"
+
+
+rule gate1_gpu:
+    input:
+        static="validation/evidence/gate1_static.json",
+        script="validation/scripts/run_gate1_gpu.py",
+        package=STATIC_PACKAGE_FILES,
+        conda_lock="workflow/envs/rapids-cu128-linux-64.lock",
+        pip_lock="workflow/envs/rapids-cu128-pip.lock",
+    output:
+        "validation/evidence/gate1_gpu.json",
+    log:
+        "validation/logs/gate1_gpu.log",
+    threads: 4
+    resources:
+        mem_mb=32000,
+        runtime=30,
+        slurm_partition="gpu-short",
+        gres="gpu:L40S:1",
+    shell:
+        "{config[gpu_python]} {input.script} --root . --output {output} --log {log}"

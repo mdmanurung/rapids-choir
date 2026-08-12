@@ -1,0 +1,16 @@
+.conda-pkgs/
+.envs/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.snakemake/
+build/
+dist/
+htmlcov/
+*.egg-info/
+*.py[cod]
+__pycache__/
+.coverage
+
+# Generated logs are local; checksum-bearing evidence remains tracked.
+validation/logs/

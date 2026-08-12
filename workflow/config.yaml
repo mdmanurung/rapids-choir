@@ -1,5 +1,6 @@
 rscript: /exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51/bin/Rscript
 python: /exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/scale_py/bin/python
+gpu_python: /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python
 
 slurm:
   gpu: L40S

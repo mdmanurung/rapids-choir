@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""Run Gate 1 functional checks on a real typed L40S allocation."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import importlib.metadata
+import json
+import os
+import subprocess
+import sys
+import time
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def execute(root: Path, command: list[str]) -> dict[str, Any]:
+    started = time.perf_counter()
+    completed = subprocess.run(
+        command,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return {
+        "command": command,
+        "returncode": completed.returncode,
+        "seconds": time.perf_counter() - started,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+    }
+
+
+def conda_packages(prefix: Path) -> dict[str, dict[str, str]]:
+    packages: dict[str, dict[str, str]] = {}
+    for path in (prefix / "conda-meta").glob("*.json"):
+        record = json.loads(path.read_text(encoding="utf-8"))
+        packages[record["name"]] = {
+            "version": record["version"],
+            "build": record["build"],
+        }
+    return packages
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--log", type=Path, required=True)
+    args = parser.parse_args()
+
+    root = args.root.resolve()
+    python = Path(sys.executable).resolve()
+    prefix = python.parent.parent
+    slurm_job_id = os.environ.get("SLURM_JOB_ID")
+    if not slurm_job_id:
+        raise RuntimeError("Gate 1 GPU evidence must run inside a Slurm allocation")
+
+    doctor = execute(
+        root,
+        [str(python), "-m", "rapids_choir", "doctor", "--strict", "--json"],
+    )
+    doctor_payload: dict[str, Any] = {}
+    if doctor["stdout"]:
+        doctor_payload = json.loads(doctor["stdout"])
+    tests = execute(
+        root,
+        [
+            str(python),
+            "-m",
+            "pytest",
+            "tests/gpu/test_statistics.py",
+            "tests/gpu/test_doctor.py",
+            "-q",
+        ],
+    )
+    nvidia_smi = execute(
+        root,
+        [
+            "nvidia-smi",
+            "--query-gpu=name,uuid,driver_version,memory.total",
+            "--format=csv,noheader,nounits",
+        ],
+    )
+    revision = execute(root, ["git", "rev-parse", "HEAD"])
+    tracked_status = execute(
+        root, ["git", "status", "--porcelain", "--untracked-files=no"]
+    )
+
+    packages = conda_packages(prefix)
+    expected_conda = {
+        "cuda-version": "12.8",
+        "rapids": "26.06.01",
+        "cuml": "26.06.00",
+        "cugraph": "26.06.00",
+        "rmm": "26.06.00",
+    }
+    actual_conda = {
+        name: packages.get(name, {}).get("version") for name in expected_conda
+    }
+    cuda13_packages = sorted(
+        name
+        for name, record in packages.items()
+        if "cuda13" in f"{name}-{record['build']}".lower()
+    )
+    rsc_version = importlib.metadata.version("rapids-singlecell-cu12")
+
+    device_name = ""
+    if doctor_payload:
+        for check in doctor_payload.get("checks", []):
+            if check.get("name") == "cuda_device_and_rmm":
+                device_name = check.get("details", {}).get("name", "")
+
+    status = "PASS"
+    failure_reasons: list[str] = []
+    conditions = {
+        "doctor": doctor["returncode"] == 0 and doctor_payload.get("status") == "PASS",
+        "gpu_tests": tests["returncode"] == 0,
+        "nvidia_smi": nvidia_smi["returncode"] == 0,
+        "typed_l40s": "L40S" in device_name,
+        "conda_versions": actual_conda == expected_conda,
+        "rapids_singlecell": rsc_version == "0.16.1",
+        "single_cuda_major": not cuda13_packages,
+        "clean_tracked_tree": tracked_status["returncode"] == 0
+        and not tracked_status["stdout"].strip(),
+        "commit_resolved": revision["returncode"] == 0,
+    }
+    for name, passed in conditions.items():
+        if not passed:
+            failure_reasons.append(name)
+    if failure_reasons:
+        status = "FAIL"
+
+    lock = root / "workflow/envs/rapids-cu128-linux-64.lock"
+    pip_lock = root / "workflow/envs/rapids-cu128-pip.lock"
+    payload = {
+        "schema_version": 1,
+        "gate": 1,
+        "scope": "real_gpu_functional",
+        "status": status,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "commit": revision["stdout"].strip(),
+        "slurm": {
+            "job_id": slurm_job_id,
+            "job_name": os.environ.get("SLURM_JOB_NAME"),
+            "node": os.environ.get("SLURMD_NODENAME"),
+            "partition": os.environ.get("SLURM_JOB_PARTITION"),
+            "gres": os.environ.get("SLURM_JOB_GRES"),
+        },
+        "device": {
+            "doctor_name": device_name,
+            "nvidia_smi": nvidia_smi["stdout"].strip(),
+        },
+        "environment": {
+            "python": sys.version.split()[0],
+            "python_executable": str(python),
+            "conda": actual_conda,
+            "rapids_singlecell_cu12": rsc_version,
+            "cuda13_packages": cuda13_packages,
+            "locks": {
+                lock.relative_to(root).as_posix(): sha256(lock),
+                pip_lock.relative_to(root).as_posix(): sha256(pip_lock),
+            },
+        },
+        "conditions": conditions,
+        "failure_reasons": failure_reasons,
+        "doctor": doctor_payload,
+        "gpu_tests": {
+            "returncode": tests["returncode"],
+            "seconds": tests["seconds"],
+            "stdout": tests["stdout"],
+            "stderr": tests["stderr"],
+        },
+    }
+    args.log.parent.mkdir(parents=True, exist_ok=True)
+    args.log.write_text(
+        (
+            f"DOCTOR\n{doctor['stdout']}{doctor['stderr']}\n"
+            f"GPU TESTS\n{tests['stdout']}{tests['stderr']}\n"
+            f"NVIDIA-SMI\n{nvidia_smi['stdout']}{nvidia_smi['stderr']}"
+        ),
+        encoding="utf-8",
+    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = args.output.with_suffix(args.output.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    temporary.replace(args.output)
+    if status != "PASS":
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
