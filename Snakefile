@@ -27,6 +27,8 @@ STATIC_PACKAGE_FILES = sorted(
     for directory in ("src", "tests", "validation/scripts")
     for path in Path(directory).glob("**/*")
     if path.is_file()
+    and path.suffix in {".py", ".R"}
+    and "__pycache__" not in path.parts
 )
 rule all:
     input:
