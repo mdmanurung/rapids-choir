@@ -1,0 +1,27 @@
+rapids-choir
+============
+
+This project is an independent GPU port derived from ideas and MIT-licensed
+source code in CHOIR v0.3.0:
+
+  Copyright (c) 2023 The Corces Lab @ the Gladstone Institutes
+  https://github.com/corceslab/CHOIR
+  frozen reference commit 0db5e90ef46cd4f2f3765aa812325c8c768563fa
+
+The upstream copyright and MIT permission notice are retained in LICENSE and
+alongside the frozen validation source snapshot.
+
+rapids-choir is not affiliated with, endorsed by, or maintained by the Corces
+Lab, Gladstone Institutes, the CHOIR authors, NVIDIA, or the RAPIDS project.
+CHOIR and RAPIDS-related names remain the property of their respective owners.
+
+Scientific reference:
+
+  Sant C, Mucke L, Corces MR. CHOIR improves significance-based detection of
+  cell types and states from single-cell data. Nature Genetics 57, 1309-1319
+  (2025). https://doi.org/10.1038/s41588-025-02148-8
+
+The KDE-derived reference tail quantities implemented for compatibility are
+not described by this project as formal permutation p-values. Multiplicity
+outputs are compatibility-adjusted tail scores and do not provide confirmatory
+FDR or type-I-error guarantees.

@@ -1,0 +1,11 @@
+{
+  "r_version": "R version 4.5.1 (2025-06-13)",
+  "platform": "x86_64-conda-linux-gnu",
+  "reference_commit": "0db5e90ef46cd4f2f3765aa812325c8c768563fa",
+  "packages": {
+    "Matrix": "1.7.5",
+    "dplyr": "1.2.1",
+    "jsonlite": "2.0.0",
+    "spatstat.univar": "3.1.7"
+  }
+}

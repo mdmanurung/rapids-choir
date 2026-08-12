@@ -1,0 +1,5 @@
+{
+  "decision": "split",
+  "reason": "split: min connections",
+  "connectivity": 0
+}

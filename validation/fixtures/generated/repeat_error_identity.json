@@ -1,0 +1,15 @@
+{
+  "sampled_orders": [
+    ["cell_a", "cell_b"],
+    ["cell_b", "cell_a"]
+  ],
+  "stable_error_ids": ["cell_a", "cell_a"],
+  "reference_position_errors": [1, 2],
+  "reference_position_frequencies": {
+    "1": 1,
+    "2": 1
+  },
+  "corrected_identity_frequencies": {
+    "cell_a": 2
+  }
+}

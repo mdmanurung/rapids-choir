@@ -1,0 +1,7 @@
+{
+  "requested_iterations": [1, 3, 5, 7, 9, 101],
+  "split_rounds": [0, 2, 2, 4, 4, 50],
+  "observed_accuracies": [0, 4, 4, 8, 8, 100],
+  "null_accuracies": [0, 4, 4, 8, 8, 100],
+  "forest_fits": [0, 8, 8, 16, 16, 200]
+}

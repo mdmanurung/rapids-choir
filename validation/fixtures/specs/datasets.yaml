@@ -1,0 +1,88 @@
+schema_version: 1
+frozen_at: "2026-08-12"
+reference:
+  project: CHOIR
+  version: "0.3.0"
+  commit: 0db5e90ef46cd4f2f3765aa812325c8c768563fa
+  paper_doi: 10.1038/s41588-025-02148-8
+
+dataset_source:
+  title: Source Data and Simulated Datasets for Sant et al. 2025
+  doi: 10.5281/zenodo.14641222
+  license: CC-BY-4.0
+  creator: "Sant, Cathrine"
+  archive:
+    name: Simulated_Datasets.tar.gz
+    bytes: 27593848194
+    md5: cf2024b530fc9101b9f2d64998868541
+  parameters:
+    name: Simulated_Data_Parameters.xlsx
+    md5: 07691661f31d7bab18432792f13f66ba
+    sha256: baf94a164dc14db4d7e09fca2d323367130b48632b5fea645199aab48f5aed54
+
+development:
+  opened_for_calibration: true
+  datasets:
+    - id: "Simulated Dataset 1"
+      ground_truth_groups: 1
+      cells: 500
+    - id: "Simulated Dataset 26"
+      ground_truth_groups: 5
+      cells: 5000
+    - id: "Simulated Dataset 51"
+      ground_truth_groups: 10
+      cells: 5000
+    - id: "Simulated Dataset 76"
+      ground_truth_groups: 20
+      cells: 5000
+
+holdout:
+  opened_for_calibration: false
+  unseal_condition: "RF profile frozen in validation/evidence/rf_profile.json"
+  datasets:
+    - id: "Simulated Dataset 5"
+      ground_truth_groups: 1
+      cells: 500
+    - id: "Simulated Dataset 30"
+      ground_truth_groups: 5
+      cells: 5000
+    - id: "Simulated Dataset 55"
+      ground_truth_groups: 10
+      cells: 5000
+    - id: "Simulated Dataset 80"
+      ground_truth_groups: 20
+      cells: 5000
+    - id: "Simulated Dataset 111"
+      ground_truth_groups: 5
+      cells: 23810
+      sentinel: rare_population
+
+seeds:
+  fixture_generation: 104729
+  reference_rf: 1
+  gpu_repeats: [1, 1, 1, 1, 1]
+  calibration_profiles: 8675309
+
+acceptance:
+  comparator:
+    overall_decision_concordance_min: 0.95
+    per_dataset_decision_concordance_min: 0.90
+    overall_wilson_lower_95_min: 0.92
+    median_abs_observed_accuracy_difference_max: 0.05
+    p95_abs_observed_accuracy_difference_max: 0.10
+    unapproved_post_ingest_transfer_bytes_max: 1048576
+    vram_headroom_min: 0.20
+  hierarchy_compatibility:
+    per_dataset_pair_decision_concordance_min: 0.90
+    per_dataset_ari_min: 0.85
+    median_ari_min: 0.90
+    cluster_count_abs_difference: "max(1, 0.10 * reference_cluster_count)"
+    rare_population_jaccard_min: 0.80
+  hierarchy_corrected:
+    per_dataset_truth_ari_regression_max: 0.02
+    median_truth_ari_non_lower_than_compatibility: true
+
+notes:
+  - Archive MD5 is the immutable dataset checksum until selected members are extracted.
+  - Per-member SHA-256 values must be recorded before the first calibration run.
+  - Holdout objects and reference decisions must remain unread until the RF profile is frozen.

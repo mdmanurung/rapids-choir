@@ -1,0 +1,20 @@
+{
+  "fixture_files_verified": 12,
+  "gate": 0,
+  "holdout_sealed": true,
+  "limitations": [
+    "Parent dataset archive is frozen by its Zenodo MD5; selected member SHA-256 values are required before calibration.",
+    "Gate 0 is a design/reference gate and is not GPU functional evidence."
+  ],
+  "r_packages": {
+    "Matrix": "1.7.5",
+    "dplyr": "1.2.1",
+    "jsonlite": "2.0.0",
+    "spatstat.univar": "3.1.7"
+  },
+  "r_version": "4.5.1",
+  "reference_commit": "0db5e90ef46cd4f2f3765aa812325c8c768563fa",
+  "schema_version": 1,
+  "source_files_verified": 18,
+  "status": "PASS"
+}

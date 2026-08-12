@@ -1,0 +1,9 @@
+rscript: /exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51/bin/Rscript
+python: /exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/scale_py/bin/python
+
+slurm:
+  gpu: L40S
+  gres: "gpu:L40S:1"
+  cpus_per_task: 8
+  mem_mb: 64000
+  runtime_minutes: 120

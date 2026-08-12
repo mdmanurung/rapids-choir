@@ -1,0 +1,8 @@
+{
+  "random_seed_unused_in_permutation_body": true,
+  "repeated_errors_use_positions": true,
+  "batch_metrics_use_flat_positions": true,
+  "fdr_duplicates_variance_candidate": true,
+  "subtree_optimizer_passes_full_reduction": true,
+  "rounds_use_r_round": true
+}

@@ -1,0 +1,66 @@
+{
+  "algorithm": "sha256",
+  "files": [
+    {
+      "bytes": 195,
+      "path": "validation/fixtures/generated/batch_eligibility.json",
+      "sha256": "5d0104cde719bdf1b67268f471f58bd7470cc1ca5ec9a93db989454c3922e873"
+    },
+    {
+      "bytes": 317,
+      "path": "validation/fixtures/generated/batch_positional_metrics.json",
+      "sha256": "2e3a5f9c60cc21295603fac0bbba2f4fd14148915e55acd528c3d7f84c7d715c"
+    },
+    {
+      "bytes": 1472,
+      "path": "validation/fixtures/generated/decision_rules.json",
+      "sha256": "de6eeee02830b4c8d850e91749eed0de64619b7925517affffa58ed185338719"
+    },
+    {
+      "bytes": 85,
+      "path": "validation/fixtures/generated/disconnected_graph.json",
+      "sha256": "c4d59d4844b09e2a7d2715784d70735661b708b66a279de5e5a8c1317970040a"
+    },
+    {
+      "bytes": 1058,
+      "path": "validation/fixtures/generated/kde_bootstrap.json",
+      "sha256": "ae756584657cc1c3819336dcca8ca97293063ba6bd401cd215a946c6231f84ef"
+    },
+    {
+      "bytes": 681,
+      "path": "validation/fixtures/generated/multiplicity.json",
+      "sha256": "49f8733880ad175291f7b21b16c1bacdd3655b9c969a20d65406444c67469538"
+    },
+    {
+      "bytes": 221,
+      "path": "validation/fixtures/generated/odd_iterations.json",
+      "sha256": "ed7a916229116deb980df3a3a3e6d8defefd6de90f0274756355f0650451dde3"
+    },
+    {
+      "bytes": 161,
+      "path": "validation/fixtures/generated/random_state.json",
+      "sha256": "58256205af3dd1b6c4a49404e40d6f4c23e922c61c67ef21718e0103b8a7c110"
+    },
+    {
+      "bytes": 289,
+      "path": "validation/fixtures/generated/repeat_error_identity.json",
+      "sha256": "877f278954f39e7931947b305a1c73b3a51a15fe0e0d69c139f1511f5b93c64e"
+    },
+    {
+      "bytes": 278,
+      "path": "validation/fixtures/generated/session.json",
+      "sha256": "56df13675eccbb50e4768478755e77e55433583029f157f0bf171ac03860c58f"
+    },
+    {
+      "bytes": 264,
+      "path": "validation/fixtures/generated/source_assertions.json",
+      "sha256": "8052bb3839b8ead3244443e68e2639168d1a01d8a9badcda653b9b494d8429c2"
+    },
+    {
+      "bytes": 417,
+      "path": "validation/fixtures/generated/subtree_distance_source.json",
+      "sha256": "46231226638cb302f62f974adcd902fbc9c8fad3ddce240781b3764379b80ba1"
+    }
+  ],
+  "schema_version": 1
+}

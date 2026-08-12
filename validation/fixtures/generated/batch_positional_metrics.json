@@ -1,0 +1,9 @@
+{
+  "round_batches": ["batch_a", "batch_b"],
+  "flattened_observed_accuracies": [0.59999999999999998, 0.62, 0.80000000000000004, 0.81999999999999995],
+  "reference_batch_mean_accuracies": "0.7; 0.62",
+  "corrected_batch_mean_accuracies": {
+    "batch_a": 0.60999999999999999,
+    "batch_b": 0.81000000000000005
+  }
+}

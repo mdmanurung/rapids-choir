@@ -1,0 +1,11 @@
+{
+  "cluster1_frequencies": {
+    "batch_a": 8
+  },
+  "cluster2_frequencies": {
+    "batch_b": 8
+  },
+  "eligible_intersection": [],
+  "decision": "merge",
+  "reason": "merge: batch-dependent"
+}

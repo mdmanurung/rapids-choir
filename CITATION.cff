@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use rapids-choir, cite this software and the original CHOIR paper."
+title: "rapids-choir"
+type: software
+version: 0.1.0.dev0
+license: MIT
+repository-code: "https://github.com/mdmanurung/rapids-choir"
+authors:
+  - name: "rapids-choir contributors"
+references:
+  - type: article
+    title: "CHOIR improves significance-based detection of cell types and states from single-cell data"
+    authors:
+      - family-names: Sant
+        given-names: Cathrine
+      - family-names: Mucke
+        given-names: Lennart
+      - family-names: Corces
+        given-names: M. Ryan
+    journal: Nature Genetics
+    volume: 57
+    start: 1309
+    end: 1319
+    year: 2025
+    doi: "10.1038/s41588-025-02148-8"

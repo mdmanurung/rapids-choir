@@ -1,0 +1,46 @@
+{
+  "inputs": {
+    "direct_split": {
+      "mean_accuracy": 0.80000000000000004,
+      "accuracy_tail": 0.01,
+      "variance_tail": 0.02,
+      "modified_accuracy_tail": 0.20000000000000001,
+      "modified_variance_tail": 0.20000000000000001,
+      "n_repeat_errors1": 1,
+      "n_repeat_errors2": 1
+    },
+    "repeat_error_split": {
+      "mean_accuracy": 0.80000000000000004,
+      "accuracy_tail": 0.059999999999999998,
+      "variance_tail": 0.070000000000000007,
+      "modified_accuracy_tail": 0.01,
+      "modified_variance_tail": 0.02,
+      "n_repeat_errors1": 1,
+      "n_repeat_errors2": 1
+    },
+    "minimum_accuracy_merge": {
+      "mean_accuracy": 0.40000000000000002,
+      "accuracy_tail": 0.01,
+      "variance_tail": 0.02,
+      "modified_accuracy_tail": 0.20000000000000001,
+      "modified_variance_tail": 0.20000000000000001,
+      "n_repeat_errors1": 1,
+      "n_repeat_errors2": 1
+    },
+    "ordinary_merge": {
+      "mean_accuracy": 0.80000000000000004,
+      "accuracy_tail": 0.20000000000000001,
+      "variance_tail": 0.20000000000000001,
+      "modified_accuracy_tail": 0.20000000000000001,
+      "modified_variance_tail": 0.20000000000000001,
+      "n_repeat_errors1": 1,
+      "n_repeat_errors2": 1
+    }
+  },
+  "outputs": {
+    "direct_split": ["split", "split"],
+    "repeat_error_split": ["split", "split: repeat error"],
+    "minimum_accuracy_merge": ["merge", "merge: min accuracy"],
+    "ordinary_merge": ["merge", "merge"]
+  }
+}
