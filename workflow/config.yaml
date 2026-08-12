@@ -1,6 +1,9 @@
 rscript: /exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51/bin/Rscript
 python: /exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/scale_py/bin/python
 gpu_python: /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python
+# CuPy only finds the pinned CUDA 12.8 toolkit when CONDA_PREFIX is set; running
+# the interpreter by path without it falls through to a system CUDA 13 toolkit.
+gpu_prefix: /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128
 
 slurm:
   gpu: L40S

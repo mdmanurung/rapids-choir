@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import importlib
+import os
 import platform
+import sys
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from ._cuda import initialize_cuda
@@ -42,6 +45,43 @@ def _run_check(name: str, function: Any) -> Check:
 def run_doctor(device: str = "cuda:0") -> DoctorReport:
     context_holder: dict[str, Any] = {}
 
+    def toolkit_check() -> dict[str, Any]:
+        """Fail when CuPy resolves a CUDA toolkit outside the pinned environment.
+
+        CuPy only finds the environment's own toolkit when ``CONDA_PREFIX`` is
+        set (``cupy._environment._get_conda_cuda_path``). Running the
+        interpreter by absolute path without activation silently falls through
+        to a system toolkit, which can be a different CUDA major version than
+        the pinned one. Package versions alone cannot detect that.
+        """
+
+        get_cuda_path = importlib.import_module("cupy.cuda").get_cuda_path
+        cuda_path = get_cuda_path()
+        prefix = Path(sys.prefix).resolve()
+        if cuda_path is None:
+            raise RuntimeError(
+                "CuPy resolved no CUDA toolkit path; "
+                f"activate the environment at {prefix} or set CUDA_PATH"
+            )
+        resolved = Path(cuda_path).resolve()
+        if resolved != prefix and prefix not in resolved.parents:
+            raise RuntimeError(
+                f"CuPy resolved CUDA toolkit {resolved}, which is outside the "
+                f"pinned environment {prefix}; set CONDA_PREFIX or CUDA_PATH so "
+                "the pinned CUDA 12.8 toolkit is used"
+            )
+        headers = resolved / "include" / "cuda_runtime.h"
+        if not headers.is_file():
+            raise RuntimeError(f"CUDA headers are missing at {headers}")
+        return {
+            "cuda_path": str(resolved),
+            "headers": str(headers),
+            "environment_prefix": str(prefix),
+            "conda_prefix": os.environ.get("CONDA_PREFIX"),
+        }
+
+    checks = [_run_check("cuda_toolkit_locality", toolkit_check)]
+
     def device_check() -> dict[str, Any]:
         context = initialize_cuda(device)
         context_holder["context"] = context
@@ -54,7 +94,7 @@ def run_doctor(device: str = "cuda:0") -> DoctorReport:
             "total_bytes": total_bytes,
         }
 
-    checks = [_run_check("cuda_device_and_rmm", device_check)]
+    checks.append(_run_check("cuda_device_and_rmm", device_check))
 
     def versions_check() -> dict[str, Any]:
         context = context_holder["context"]

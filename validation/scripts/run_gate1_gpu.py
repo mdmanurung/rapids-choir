@@ -118,10 +118,15 @@ def main() -> None:
     rsc_version = importlib.metadata.version("rapids-singlecell-cu12")
 
     device_name = ""
+    cuda_path = ""
+    toolkit_inside_env = False
     if doctor_payload:
         for check in doctor_payload.get("checks", []):
             if check.get("name") == "cuda_device_and_rmm":
                 device_name = check.get("details", {}).get("name", "")
+            if check.get("name") == "cuda_toolkit_locality":
+                toolkit_inside_env = bool(check.get("passed"))
+                cuda_path = check.get("details", {}).get("cuda_path", "")
 
     status = "PASS"
     failure_reasons: list[str] = []
@@ -133,6 +138,9 @@ def main() -> None:
         "conda_versions": actual_conda == expected_conda,
         "rapids_singlecell": rsc_version == "0.16.1",
         "single_cuda_major": not cuda13_packages,
+        # Package versions cannot see a toolkit resolved from outside the
+        # environment, so this condition is not redundant with the one above.
+        "cuda_toolkit_inside_env": toolkit_inside_env,
         "clean_tracked_tree": tracked_status["returncode"] == 0
         and not tracked_status["stdout"].strip(),
         "commit_resolved": revision["returncode"] == 0,
@@ -169,6 +177,8 @@ def main() -> None:
             "conda": actual_conda,
             "rapids_singlecell_cu12": rsc_version,
             "cuda13_packages": cuda13_packages,
+            "cuda_path": cuda_path,
+            "conda_prefix": os.environ.get("CONDA_PREFIX"),
             "locks": {
                 lock.relative_to(root).as_posix(): sha256(lock),
                 pip_lock.relative_to(root).as_posix(): sha256(pip_lock),
@@ -194,10 +204,16 @@ def main() -> None:
         encoding="utf-8",
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    serialized = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     temporary = args.output.with_suffix(args.output.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    temporary.write_text(serialized)
     temporary.replace(args.output)
     if status != "PASS":
+        # Snakemake deletes a failed job's declared outputs, which would destroy
+        # the only record of why the gate failed. This sibling is not a rule
+        # output, so it survives.
+        preserved = args.output.with_name(args.output.stem + ".FAILED.json")
+        preserved.write_text(serialized)
         raise SystemExit(1)
 
 

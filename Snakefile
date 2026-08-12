@@ -117,4 +117,5 @@ rule gate1_gpu:
         slurm_partition="gpu-short",
         gres="gpu:L40S:1",
     shell:
+        "CONDA_PREFIX={config[gpu_prefix]} "
         "{config[gpu_python]} {input.script} --root . --output {output} --log {log}"
