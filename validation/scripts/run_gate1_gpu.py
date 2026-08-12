@@ -81,6 +81,7 @@ def main() -> None:
             "-m",
             "pytest",
             "tests/gpu/test_statistics.py",
+            "tests/gpu/test_sampling.py",
             "tests/gpu/test_doctor.py",
             "-q",
         ],
