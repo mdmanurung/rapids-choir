@@ -1,5 +1,5 @@
 {
-  "commit": "427db439ea775e8f5178852f848e2cb3377ac427",
+  "commit": "2a7ad87863c14b320d10636fc6e59c5f16b62beb",
   "conditions": {
     "clean_tracked_tree": true,
     "commit_resolved": true,
@@ -14,7 +14,7 @@
   },
   "device": {
     "doctor_name": "NVIDIA L40S",
-    "nvidia_smi": "NVIDIA L40S, GPU-a8486fee-cdbc-7d43-cd2e-b17f1338e3d7, 580.159.04, 46068"
+    "nvidia_smi": "NVIDIA L40S, GPU-5e82ea4f-1605-a5e2-7588-f63eecb124e8, 580.159.04, 46068"
   },
   "doctor": {
     "checks": [
@@ -118,19 +118,19 @@
   },
   "failure_reasons": [],
   "gate": 1,
-  "generated_at": "2026-08-13T12:18:22.088057+00:00",
+  "generated_at": "2026-08-13T15:53:09.780185+00:00",
   "gpu_tests": {
     "returncode": 0,
-    "seconds": 33.4999303589575,
+    "seconds": 169.01757133798674,
     "stderr": "",
-    "stdout": "........                                                                 [100%]\n=============================== warnings summary ===============================\ntests/gpu/test_doctor.py::test_strict_doctor_components_pass\n  /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/lib/python3.12/site-packages/cuml/ensemble/randomforestclassifier.py:238: UserWarning: The number of bins, `n_bins` is greater than the number of samples used for training. Changing `n_bins` to number of training samples.\n    return self._fit_forest(X, y)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n8 passed, 1 warning in 19.18s\n"
+    "stdout": "...................                                                      [100%]\n=============================== warnings summary ===============================\ntests/gpu/test_doctor.py::test_strict_doctor_components_pass\ntests/gpu/test_comparator.py::test_dense_and_csr_comparators_match_and_record_four_fits_per_round\ntests/gpu/test_comparator.py::test_batch_metrics_and_complete_records_are_present\ntests/gpu/test_comparator.py::test_verified_cache_hit_records_whole_call_timing\ntests/gpu/test_comparator.py::test_synthetic_ranger_and_cuml_fixture_agree\n  /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/lib/python3.12/site-packages/cuml/ensemble/randomforestclassifier.py:238: UserWarning: The number of bins, `n_bins` is greater than the number of samples used for training. Changing `n_bins` to number of training samples.\n    return self._fit_forest(X, y)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n19 passed, 5 warnings in 156.03s (0:02:36)\n"
   },
   "schema_version": 1,
   "scope": "real_gpu_functional",
   "slurm": {
     "gres": null,
-    "job_id": "25413905",
-    "job_name": "python",
+    "job_id": "25418042",
+    "job_name": "rch-gate1-final",
     "node": "res-hpc-gpu11",
     "partition": "gpu-short"
   },
