@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 38528,
+      "bytes": 38691,
       "path": "dist/rapids_choir-0.1.0.dev0-py3-none-any.whl",
-      "sha256": "80ca59194905a324842149ecffd888d66409137136cc1d4cac07cf0d827c64ea"
+      "sha256": "11c07ca02c511f48117455b7b1b699060963543314348622976e5feb43a46fd5"
     },
     {
-      "bytes": 277446,
+      "bytes": 277728,
       "path": "dist/rapids_choir-0.1.0.dev0.tar.gz",
-      "sha256": "f967182f79e35433c243a9338d44609db7fd58588761da622abed1e91657718c"
+      "sha256": "d58fd53e9f21d462f0158df7d3e530bbe1316dd8cb94a4961ff9cd106ac05491"
     }
   ],
   "checks": [
@@ -21,7 +21,7 @@
         "validation/scripts"
       ],
       "returncode": 0,
-      "seconds": 0.05700327409431338,
+      "seconds": 0.04494909290224314,
       "stderr": "",
       "stdout": "All checks passed!\n"
     },
@@ -31,7 +31,7 @@
         "src/rapids_choir"
       ],
       "returncode": 0,
-      "seconds": 1.9802616187371314,
+      "seconds": 1.9251234037801623,
       "stderr": "",
       "stdout": "Success: no issues found in 20 source files\n"
     },
@@ -44,9 +44,9 @@
         "-q"
       ],
       "returncode": 0,
-      "seconds": 7.403366568032652,
+      "seconds": 7.465989360585809,
       "stderr": "",
-      "stdout": "............................................                             [100%]\n44 passed in 0.63s\n"
+      "stdout": "............................................                             [100%]\n44 passed in 0.59s\n"
     },
     {
       "command": [
@@ -56,7 +56,7 @@
         "--no-isolation"
       ],
       "returncode": 0,
-      "seconds": 10.483857723884284,
+      "seconds": 10.064356771763414,
       "stderr": "* Getting build dependencies for sdist...\n* Building sdist...\n* Building wheel from sdist\n* Getting build dependencies for wheel...\n* Building wheel...\n",
       "stdout": "Successfully built rapids_choir-0.1.0.dev0.tar.gz and rapids_choir-0.1.0.dev0-py3-none-any.whl\n"
     },
@@ -67,12 +67,12 @@
         "import json,sys,rapids_choir; names=('cupy','rmm','cuml','cugraph','rapids_singlecell'); print(json.dumps([n for n in names if n in sys.modules]))"
       ],
       "returncode": 0,
-      "seconds": 0.18243596982210875,
+      "seconds": 0.18958767596632242,
       "stderr": "",
       "stdout": "[]\n"
     }
   ],
-  "commit": "fb5c5e1e9b3109e08cea38a0c422958d9509668c",
+  "commit": "13d81d1f69be5a0b9a642223718c82cec7ea8dc3",
   "conda_packages": {
     "cugraph": "26.06.00",
     "cuml": "26.06.00",
@@ -81,7 +81,7 @@
   },
   "functional_validation": false,
   "gate": 1,
-  "generated_at": "2026-08-13T14:55:27.677471+00:00",
+  "generated_at": "2026-08-13T15:02:35.337007+00:00",
   "limitations": [
     "This evidence covers only imports, schemas, logic, typing, and packaging.",
     "It is not GPU functional or scientific acceptance evidence."
