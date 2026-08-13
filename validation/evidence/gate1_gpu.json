@@ -1,0 +1,138 @@
+{
+  "commit": "427db439ea775e8f5178852f848e2cb3377ac427",
+  "conditions": {
+    "clean_tracked_tree": true,
+    "commit_resolved": true,
+    "conda_versions": true,
+    "cuda_toolkit_inside_env": true,
+    "doctor": true,
+    "gpu_tests": true,
+    "nvidia_smi": true,
+    "rapids_singlecell": true,
+    "single_cuda_major": true,
+    "typed_l40s": true
+  },
+  "device": {
+    "doctor_name": "NVIDIA L40S",
+    "nvidia_smi": "NVIDIA L40S, GPU-a8486fee-cdbc-7d43-cd2e-b17f1338e3d7, 580.159.04, 46068"
+  },
+  "doctor": {
+    "checks": [
+      {
+        "details": {
+          "conda_prefix": "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128",
+          "cuda_path": "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/targets/x86_64-linux",
+          "environment_prefix": "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128",
+          "headers": "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/targets/x86_64-linux/include/cuda_runtime.h"
+        },
+        "error": null,
+        "name": "cuda_toolkit_locality",
+        "passed": true
+      },
+      {
+        "details": {
+          "compute_capability": "8.9",
+          "free_bytes": 23604887552,
+          "index": 0,
+          "name": "NVIDIA L40S",
+          "total_bytes": 47665709056
+        },
+        "error": null,
+        "name": "cuda_device_and_rmm",
+        "passed": true
+      },
+      {
+        "details": {
+          "cugraph": "26.06.00",
+          "cuml": "26.06.00",
+          "cupy": "14.1.1",
+          "driver": 13000,
+          "rapids_singlecell": "0.16.1",
+          "rmm": "26.06.00",
+          "runtime": 12090
+        },
+        "error": null,
+        "name": "driver_runtime_and_versions",
+        "passed": true
+      },
+      {
+        "details": {
+          "allocator": "rmm_cupy_allocator",
+          "checksum": 8386560.0,
+          "free_bytes_after": 23602790400,
+          "free_bytes_before": 23604887552,
+          "pointer_nonzero": true
+        },
+        "error": null,
+        "name": "rmm_cupy_allocation",
+        "passed": true
+      },
+      {
+        "details": {
+          "accuracy": 1.0,
+          "convert_dtype": false,
+          "feature_dtype": "float32",
+          "label_dtype": "int32"
+        },
+        "error": null,
+        "name": "cuml_random_forest",
+        "passed": true
+      },
+      {
+        "details": {
+          "clusters": 2,
+          "modularity": 0.4950248756218907,
+          "vertices": 4
+        },
+        "error": null,
+        "name": "cugraph_louvain",
+        "passed": true
+      }
+    ],
+    "device": "cuda:0",
+    "environment": {
+      "platform": "Linux-4.18.0-553.137.1.el8_10.x86_64-x86_64-with-glibc2.28",
+      "python": "3.12.13"
+    },
+    "schema_version": 1,
+    "status": "PASS"
+  },
+  "environment": {
+    "conda": {
+      "cuda-version": "12.8",
+      "cugraph": "26.06.00",
+      "cuml": "26.06.00",
+      "rapids": "26.06.01",
+      "rmm": "26.06.00"
+    },
+    "conda_prefix": "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128",
+    "cuda13_packages": [],
+    "cuda_path": "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/targets/x86_64-linux",
+    "locks": {
+      "workflow/envs/rapids-cu128-linux-64.lock": "654be2a7d229f0830f255932377ebcffcf07776ddadca42093c69ba05b378467",
+      "workflow/envs/rapids-cu128-pip.lock": "ef2f81786d5b23423566a832bc0e87125b00388451deed2a4388222d284cdf53"
+    },
+    "python": "3.12.13",
+    "python_executable": "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python3.12",
+    "rapids_singlecell_cu12": "0.16.1"
+  },
+  "failure_reasons": [],
+  "gate": 1,
+  "generated_at": "2026-08-13T12:18:22.088057+00:00",
+  "gpu_tests": {
+    "returncode": 0,
+    "seconds": 33.4999303589575,
+    "stderr": "",
+    "stdout": "........                                                                 [100%]\n=============================== warnings summary ===============================\ntests/gpu/test_doctor.py::test_strict_doctor_components_pass\n  /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/lib/python3.12/site-packages/cuml/ensemble/randomforestclassifier.py:238: UserWarning: The number of bins, `n_bins` is greater than the number of samples used for training. Changing `n_bins` to number of training samples.\n    return self._fit_forest(X, y)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n8 passed, 1 warning in 19.18s\n"
+  },
+  "schema_version": 1,
+  "scope": "real_gpu_functional",
+  "slurm": {
+    "gres": null,
+    "job_id": "25413905",
+    "job_name": "python",
+    "node": "res-hpc-gpu11",
+    "partition": "gpu-short"
+  },
+  "status": "PASS"
+}
