@@ -153,7 +153,16 @@ def benjamini_hochberg(values: Any) -> Any:
     ranked = values[order]
     ranks = cp.arange(1, values.size + 1, dtype=cp.float64)
     adjusted_ranked = ranked * cp.float64(values.size) / ranks
-    adjusted_ranked = cp.minimum.accumulate(adjusted_ranked[::-1])[::-1]
+    # CuPy 14.1 exposes ``minimum.accumulate`` but does not implement it.  A
+    # logarithmic suffix scan keeps the BH adjustment entirely on-device.
+    step = 1
+    while step < values.size:
+        previous = adjusted_ranked
+        adjusted_ranked = previous.copy()
+        adjusted_ranked[:-step] = cp.minimum(
+            previous[:-step], previous[step:]
+        )
+        step *= 2
     adjusted_ranked = cp.minimum(adjusted_ranked, cp.float64(1.0))
     adjusted = cp.empty_like(adjusted_ranked)
     adjusted[order] = adjusted_ranked
