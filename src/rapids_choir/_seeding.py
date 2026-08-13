@@ -36,6 +36,19 @@ def derive_seed(root_seed: int, namespace: str, *identities: object) -> int:
     return int.from_bytes(digest.digest(), "little") % (2**32 - 1)
 
 
+def _device_xor_reduce(values: Any, cp: Any) -> Any:
+    """Reduce uint64 values with XOR despite CuPy 14 lacking ufunc.reduce."""
+
+    reduced = values
+    while reduced.size > 1:
+        paired = int(reduced.size) // 2
+        folded = reduced[: paired * 2 : 2] ^ reduced[1 : paired * 2 : 2]
+        if int(reduced.size) % 2:
+            folded = cp.concatenate((folded, reduced[-1:]))
+        reduced = folded
+    return reduced[0]
+
+
 def device_membership_fingerprint(indices: Any) -> tuple[int, int, int]:
     """Return a compact order-independent fingerprint derived on the GPU.
 
@@ -61,7 +74,7 @@ def device_membership_fingerprint(indices: Any) -> tuple[int, int, int]:
     mixed = (mixed ^ (mixed >> cp.uint64(30))) * cp.uint64(0xBF58476D1CE4E5B9)
     mixed = (mixed ^ (mixed >> cp.uint64(27))) * cp.uint64(0x94D049BB133111EB)
     mixed = mixed ^ (mixed >> cp.uint64(31))
-    xor_value = int(cp.bitwise_xor.reduce(mixed).item())
+    xor_value = int(_device_xor_reduce(mixed, cp).item())
     sum_value = int(cp.sum(mixed, dtype=cp.uint64).item())
     return int(indices.size), xor_value, sum_value
 

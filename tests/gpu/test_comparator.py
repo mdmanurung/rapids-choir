@@ -27,8 +27,8 @@ ROOT = Path(__file__).parents[2]
 
 def separable_inputs() -> tuple[object, object, object, object, object]:
     generator = cp.random.RandomState(91)
-    first = generator.normal(-2, 0.3, size=(20, 5)).astype(cp.float32)
-    second = generator.normal(2, 0.3, size=(20, 5)).astype(cp.float32)
+    first = generator.normal(1, 0.2, size=(20, 5)).astype(cp.float32)
+    second = generator.normal(5, 0.2, size=(20, 5)).astype(cp.float32)
     features = cp.ascontiguousarray(cp.vstack((first, second)))
     graph = cps.csr_matrix(cp.ones((40, 40), dtype=cp.float32))
     cluster1 = cp.arange(0, 20, dtype=cp.int64)
