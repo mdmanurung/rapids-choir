@@ -76,13 +76,23 @@ def main() -> None:
     parser.add_argument("--max-depth")
     parser.add_argument("--n-streams", type=int)
     parser.add_argument("--profile-json", type=Path)
-    parser.add_argument("--repeats", default=5, type=int)
+    parser.add_argument("--repeats", type=int)
+    parser.add_argument("--repeat-index", type=int)
     parser.add_argument("--output-parquet", required=True, type=Path)
     parser.add_argument("--output-summary", required=True, type=Path)
     args = parser.parse_args()
 
-    if args.repeats != 5:
-        raise RuntimeError("Gate 2 requires exactly five GPU repeats")
+    if args.repeat_index is None:
+        repeats = 5 if args.repeats is None else args.repeats
+        if repeats != 5:
+            raise RuntimeError("Gate 2 requires exactly five GPU repeats")
+        repeat_indices = list(range(1, repeats + 1))
+    else:
+        if args.repeats is not None:
+            raise RuntimeError("--repeats and --repeat-index are mutually exclusive")
+        if args.repeat_index not in range(1, 6):
+            raise RuntimeError("--repeat-index must be one of 1, 2, 3, 4, or 5")
+        repeat_indices = [args.repeat_index]
     if not os.environ.get("SLURM_JOB_ID"):
         raise RuntimeError("Gate 2 GPU comparisons must run inside Slurm")
     if args.profile_json is not None:
@@ -165,7 +175,7 @@ def main() -> None:
                 "initial_host_to_device_ingest_bytes": ingest_bytes,
             }
         )
-        for repeat_index in range(1, args.repeats + 1):
+        for repeat_index in repeat_indices:
             config = ComparisonConfig(
                 rules="choir_v0_3_0",
                 input_policy="device_only",
@@ -249,7 +259,8 @@ def main() -> None:
             if args.profile_json is not None
             else None
         ),
-        "repeats": args.repeats,
+        "repeats": len(repeat_indices),
+        "repeat_indices": repeat_indices,
         "random_state": 1,
         "rules": "choir_v0_3_0",
         "row_count": len(frame),

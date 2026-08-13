@@ -17,3 +17,13 @@ slurm:
   cpus_per_task: 8
   mem_mb: 64000
   runtime_minutes: 10080
+
+# Gate 2 is sharded by dataset and frozen repeat so each authoritative L40S
+# task fits the high-priority partition without changing per-pair timing.
+gpu_chunk:
+  gpu: L40S
+  gres: "gpu:L40S:1"
+  partition: gpu-short
+  cpus_per_task: 4
+  mem_mb: 32000
+  runtime_minutes: 30

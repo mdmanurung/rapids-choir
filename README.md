@@ -47,8 +47,10 @@ unless that file is tracked, committed, and unchanged. Only then run:
 ```
 
 `gate2_development` has no holdout dependency. Calibration expands the frozen
-12-profile grid into typed-L40S jobs with five same-seed repeats. Holdout
-acceptance uses only the committed winner and writes `validation/evidence/gate2.json`.
+12-profile grid into typed-L40S dataset-by-repeat shards, then verifies and
+aggregates exactly five same-seed repeats per pair before ranking profiles.
+Holdout acceptance uses the same shard contract and only the committed winner;
+it writes `validation/evidence/gate2.json`.
 
 No CPU backend or fallback is provided. Importing `rapids_choir` is deliberately
 CUDA-independent; GPU dependencies are loaded only when GPU functionality is

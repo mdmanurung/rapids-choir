@@ -112,6 +112,7 @@ RF_GRID = [
     for n_bins, depth, streams in product((128, 256, 512), (16, None), (1, 4))
 ]
 RF_BY_ID = {record["id"]: record for record in RF_GRID}
+GPU_REPEAT_INDICES = tuple(range(1, 6))
 CALIBRATION_SUMMARIES = [
     f"validation/evidence/gate2/calibration/{record['id']}.json"
     for record in RF_GRID
@@ -120,6 +121,20 @@ CALIBRATION_PARQUETS = [
     f"validation/evidence/gate2/calibration/{record['id']}.parquet"
     for record in RF_GRID
 ]
+
+
+def calibration_chunk_path(profile, dataset, repeat, suffix):
+    return (
+        "validation/evidence/gate2/calibration/chunks/"
+        f"{profile}/{dataset}.repeat{repeat}.{suffix}"
+    )
+
+
+def holdout_chunk_path(dataset, repeat, suffix):
+    return (
+        "validation/evidence/gate2/holdout/chunks/"
+        f"{dataset}.repeat{repeat}.{suffix}"
+    )
 
 
 def dataset_arguments(records, mode, include_reference=False):
@@ -167,6 +182,29 @@ def calibration_run_arguments():
         for summary, parquet in zip(
             CALIBRATION_SUMMARIES, CALIBRATION_PARQUETS, strict=True
         )
+    )
+
+
+def chunk_run_arguments(records, mode, profile=None):
+    values = []
+    for record in records:
+        dataset = dataset_slug(record["id"])
+        for repeat in GPU_REPEAT_INDICES:
+            if mode == "development":
+                summary = calibration_chunk_path(profile, dataset, repeat, "json")
+                parquet = calibration_chunk_path(
+                    profile, dataset, repeat, "parquet"
+                )
+            else:
+                summary = holdout_chunk_path(dataset, repeat, "json")
+                parquet = holdout_chunk_path(dataset, repeat, "parquet")
+            values.append("--run " + shlex.quote(f"{summary}\t{parquet}"))
+    return " ".join(values)
+
+
+def expected_dataset_arguments(records):
+    return " ".join(
+        "--expected-dataset " + shlex.quote(record["id"]) for record in records
     )
 rule all:
     input:
@@ -491,39 +529,99 @@ rule run_development_r_reference:
         "> {log:q} 2>&1"
 
 
-rule run_development_gpu_profile:
+rule run_development_gpu_profile_chunk:
     input:
         gate1="validation/evidence/gate1_gpu.json",
-        h5ad=DEV_H5AD,
-        manifests=DEV_DATA_MANIFESTS,
-        pairs=DEV_PAIR_MANIFESTS,
-        references=DEV_REFERENCES,
+        h5ad=lambda wildcards: h5ad_path(
+            "development", DEV_BY_SLUG[wildcards.dataset]
+        ),
+        manifest=lambda wildcards: data_manifest_path(
+            "development", DEV_BY_SLUG[wildcards.dataset]
+        ),
+        pairs=lambda wildcards: pair_manifest_path(
+            "development", DEV_BY_SLUG[wildcards.dataset]
+        ),
+        reference=lambda wildcards: reference_path(
+            "development", DEV_BY_SLUG[wildcards.dataset]
+        ),
         script="validation/scripts/run_gpu_comparisons.py",
         conda_lock="workflow/envs/rapids-cu128-linux-64.lock",
         pip_lock="workflow/envs/rapids-cu128-pip.lock",
     output:
-        summary="validation/evidence/gate2/calibration/{profile}.json",
-        parquet="validation/evidence/gate2/calibration/{profile}.parquet",
+        summary=(
+            "validation/evidence/gate2/calibration/chunks/"
+            "{profile}/{dataset}.repeat{repeat}.json"
+        ),
+        parquet=(
+            "validation/evidence/gate2/calibration/chunks/"
+            "{profile}/{dataset}.repeat{repeat}.parquet"
+        ),
     params:
-        datasets=dataset_arguments(DEVELOPMENT, "development", True),
+        dataset=lambda wildcards: dataset_arguments(
+            [DEV_BY_SLUG[wildcards.dataset]], "development", True
+        ),
         n_bins=lambda wildcards: RF_BY_ID[wildcards.profile]["n_bins"],
         max_depth=lambda wildcards: RF_BY_ID[wildcards.profile]["max_depth"],
         n_streams=lambda wildcards: RF_BY_ID[wildcards.profile]["n_streams"],
     log:
-        "validation/logs/gate2/calibration/{profile}.log",
-    threads: config["slurm"]["cpus_per_task"]
+        (
+            "validation/logs/gate2/calibration/chunks/"
+            "{profile}/{dataset}.repeat{repeat}.log"
+        ),
+    threads: config["gpu_chunk"]["cpus_per_task"]
     resources:
-        mem_mb=64000,
-        runtime=config["slurm"]["runtime_minutes"],
-        slurm_partition=config["slurm"]["partition"],
-        gres=config["slurm"]["gres"],
+        mem_mb=config["gpu_chunk"]["mem_mb"],
+        runtime=config["gpu_chunk"]["runtime_minutes"],
+        slurm_partition=config["gpu_chunk"]["partition"],
+        gres=config["gpu_chunk"]["gres"],
+    wildcard_constraints:
+        profile="|".join(RF_BY_ID),
+        dataset="|".join(DEV_BY_SLUG),
+        repeat="[1-5]",
+    shell:
+        "CONDA_PREFIX={config[gpu_prefix]} {config[gpu_python]} {input.script} "
+        "--root . {params.dataset} --n-bins {params.n_bins} "
+        "--max-depth {params.max_depth} --n-streams {params.n_streams} "
+        "--repeat-index {wildcards.repeat} --output-parquet {output.parquet:q} "
+        "--output-summary {output.summary:q} > {log:q} 2>&1"
+
+
+rule aggregate_development_gpu_profile:
+    input:
+        summaries=lambda wildcards: [
+            calibration_chunk_path(
+                wildcards.profile, dataset_slug(record["id"]), repeat, "json"
+            )
+            for record in DEVELOPMENT
+            for repeat in GPU_REPEAT_INDICES
+        ],
+        parquets=lambda wildcards: [
+            calibration_chunk_path(
+                wildcards.profile, dataset_slug(record["id"]), repeat, "parquet"
+            )
+            for record in DEVELOPMENT
+            for repeat in GPU_REPEAT_INDICES
+        ],
+        script="validation/scripts/aggregate_gpu_comparisons.py",
+    output:
+        summary="validation/evidence/gate2/calibration/{profile}.json",
+        parquet="validation/evidence/gate2/calibration/{profile}.parquet",
+    params:
+        runs=lambda wildcards: chunk_run_arguments(
+            DEVELOPMENT, "development", wildcards.profile
+        ),
+        datasets=expected_dataset_arguments(DEVELOPMENT),
+    log:
+        "validation/logs/gate2/calibration/{profile}.aggregate.log",
+    resources:
+        mem_mb=8000,
+        runtime=60,
     wildcard_constraints:
         profile="|".join(RF_BY_ID),
     shell:
-        "CONDA_PREFIX={config[gpu_prefix]} {config[gpu_python]} {input.script} "
-        "--root . {params.datasets} --n-bins {params.n_bins} "
-        "--max-depth {params.max_depth} --n-streams {params.n_streams} "
-        "--repeats 5 --output-parquet {output.parquet:q} "
+        "{config[python]} {input.script} --root . {params.runs} "
+        "{params.datasets} --expected-repeats 5 "
+        "--output-parquet {output.parquet:q} "
         "--output-summary {output.summary:q} > {log:q} 2>&1"
 
 
@@ -692,33 +790,84 @@ rule run_holdout_r_reference:
         "> {log:q} 2>&1"
 
 
-rule run_holdout_gpu_profile:
+rule run_holdout_gpu_profile_chunk:
     input:
         profile=RF_PROFILE,
         seal=PROFILE_SEAL,
-        h5ad=HOLD_H5AD,
-        manifests=HOLD_DATA_MANIFESTS,
-        pairs=HOLD_PAIR_MANIFESTS,
-        references=HOLD_REFERENCES,
+        h5ad=lambda wildcards: h5ad_path(
+            "holdout", HOLD_BY_SLUG[wildcards.dataset]
+        ),
+        manifest=lambda wildcards: data_manifest_path(
+            "holdout", HOLD_BY_SLUG[wildcards.dataset]
+        ),
+        pairs=lambda wildcards: pair_manifest_path(
+            "holdout", HOLD_BY_SLUG[wildcards.dataset]
+        ),
+        reference=lambda wildcards: reference_path(
+            "holdout", HOLD_BY_SLUG[wildcards.dataset]
+        ),
         script="validation/scripts/run_gpu_comparisons.py",
+    output:
+        summary=(
+            "validation/evidence/gate2/holdout/chunks/"
+            "{dataset}.repeat{repeat}.json"
+        ),
+        parquet=(
+            "validation/evidence/gate2/holdout/chunks/"
+            "{dataset}.repeat{repeat}.parquet"
+        ),
+    params:
+        dataset=lambda wildcards: dataset_arguments(
+            [HOLD_BY_SLUG[wildcards.dataset]], "holdout", True
+        ),
+    log:
+        "validation/logs/gate2/holdout/chunks/{dataset}.repeat{repeat}.log",
+    threads: config["gpu_chunk"]["cpus_per_task"]
+    resources:
+        mem_mb=config["gpu_chunk"]["mem_mb"],
+        runtime=config["gpu_chunk"]["runtime_minutes"],
+        slurm_partition=config["gpu_chunk"]["partition"],
+        gres=config["gpu_chunk"]["gres"],
+    wildcard_constraints:
+        dataset="|".join(HOLD_BY_SLUG),
+        repeat="[1-5]",
+    shell:
+        "CONDA_PREFIX={config[gpu_prefix]} {config[gpu_python]} {input.script} "
+        "--root . {params.dataset} --profile-json {input.profile:q} "
+        "--repeat-index {wildcards.repeat} "
+        "--output-parquet {output.parquet:q} --output-summary {output.summary:q} "
+        "> {log:q} 2>&1"
+
+
+rule aggregate_holdout_gpu_profile:
+    input:
+        summaries=[
+            holdout_chunk_path(dataset_slug(record["id"]), repeat, "json")
+            for record in HOLDOUT
+            for repeat in GPU_REPEAT_INDICES
+        ],
+        parquets=[
+            holdout_chunk_path(dataset_slug(record["id"]), repeat, "parquet")
+            for record in HOLDOUT
+            for repeat in GPU_REPEAT_INDICES
+        ],
+        script="validation/scripts/aggregate_gpu_comparisons.py",
     output:
         summary="validation/evidence/gate2/holdout_repeats.json",
         parquet="validation/evidence/gate2/holdout_repeats.parquet",
     params:
-        datasets=dataset_arguments(HOLDOUT, "holdout", True),
+        runs=chunk_run_arguments(HOLDOUT, "holdout"),
+        datasets=expected_dataset_arguments(HOLDOUT),
     log:
-        "validation/logs/gate2/holdout_gpu.log",
-    threads: config["slurm"]["cpus_per_task"]
+        "validation/logs/gate2/holdout_gpu.aggregate.log",
     resources:
-        mem_mb=64000,
-        runtime=config["slurm"]["runtime_minutes"],
-        slurm_partition=config["slurm"]["partition"],
-        gres=config["slurm"]["gres"],
+        mem_mb=8000,
+        runtime=60,
     shell:
-        "CONDA_PREFIX={config[gpu_prefix]} {config[gpu_python]} {input.script} "
-        "--root . {params.datasets} --profile-json {input.profile:q} --repeats 5 "
-        "--output-parquet {output.parquet:q} --output-summary {output.summary:q} "
-        "> {log:q} 2>&1"
+        "{config[python]} {input.script} --root . {params.runs} "
+        "{params.datasets} --expected-repeats 5 "
+        "--output-parquet {output.parquet:q} "
+        "--output-summary {output.summary:q} > {log:q} 2>&1"
 
 
 rule assemble_gate2_acceptance:
