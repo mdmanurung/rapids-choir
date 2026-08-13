@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from math import isfinite
+from pathlib import Path
+from typing import Any
 
 from ._enums import InputPolicy, Multiplicity, RuleSet
 from .exceptions import InvalidConfigurationError
@@ -67,6 +72,54 @@ class RFProfile:
         if self.output_type != "cupy":
             raise InvalidConfigurationError("output_type is pinned to 'cupy'")
 
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, Any]) -> RFProfile:
+        """Build a profile while rejecting unknown calibration parameters."""
+
+        allowed = set(cls.__dataclass_fields__)
+        unknown = set(values) - allowed
+        if unknown:
+            names = ", ".join(sorted(unknown))
+            raise InvalidConfigurationError(f"unknown RF profile fields: {names}")
+        return cls(**dict(values))
+
+    def to_record(self) -> dict[str, Any]:
+        return {
+            name: getattr(self, name)
+            for name in self.__dataclass_fields__
+        }
+
+
+def default_rf_profile() -> RFProfile:
+    """Load a locally frozen winner when present, otherwise use the seed profile.
+
+    Calibration writes ``validation/evidence/rf_profile.json``. Source checkouts
+    therefore adopt the winner without importing GPU modules or mutating package
+    code. Installed packages can point at the same evidence with
+    ``RAPIDS_CHOIR_RF_PROFILE``.
+    """
+
+    configured = os.environ.get("RAPIDS_CHOIR_RF_PROFILE")
+    path = (
+        Path(configured).expanduser()
+        if configured
+        else Path(__file__).resolve().parents[2]
+        / "validation"
+        / "evidence"
+        / "rf_profile.json"
+    )
+    if not path.is_file():
+        return RFProfile()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        winner = payload["winner"]
+        profile = winner.get("profile", winner)
+        return RFProfile.from_mapping(profile)
+    except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as error:
+        raise InvalidConfigurationError(
+            f"invalid frozen RF profile at {path}: {error}"
+        ) from error
+
 
 @dataclass(frozen=True, slots=True)
 class ComparisonConfig:
@@ -85,7 +138,7 @@ class ComparisonConfig:
     device: str = "cuda:0"
     vram_headroom: float = 0.20
     random_state: int = 1
-    rf_profile: RFProfile = field(default_factory=RFProfile)
+    rf_profile: RFProfile = field(default_factory=default_rf_profile)
 
     def __post_init__(self) -> None:
         try:

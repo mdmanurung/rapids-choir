@@ -85,6 +85,7 @@ def bootstrap_variances(
     values: Any,
     *,
     n_bootstrap: int | None = None,
+    sample_size: int | None = None,
     seed: int | None = None,
     indices: Any | None = None,
 ) -> Any:
@@ -97,15 +98,19 @@ def bootstrap_variances(
             raise ValueError("n_bootstrap must be positive when indices are absent")
         if seed is None:
             raise ValueError("seed must be explicit when indices are absent")
+        if sample_size is None:
+            sample_size = int(values.size)
+        if sample_size < 2:
+            raise ValueError("bootstrap sample_size must be >=2")
         generator = cp.random.RandomState(seed)
         indices = generator.randint(
-            0, values.size, size=(n_bootstrap, values.size), dtype=cp.int64
+            0, values.size, size=(n_bootstrap, sample_size), dtype=cp.int64
         )
     else:
         if not isinstance(indices, cp.ndarray):
             raise InputResidencyError("indices must be a CuPy device array")
-        if indices.ndim != 2 or indices.shape[1] != values.size:
-            raise ValueError("indices must have shape (n_bootstrap, len(values))")
+        if indices.ndim != 2:
+            raise ValueError("indices must be a two-dimensional array")
         if indices.dtype.kind not in {"i", "u"}:
             raise TypeError("bootstrap indices must have integer dtype")
         if bool(cp.any(indices < 0).item()) or bool(
@@ -121,6 +126,8 @@ def tail_probabilities(
     *,
     bootstrap_seed: int,
     bootstrap_indices: Any | None = None,
+    n_bootstrap: int | None = None,
+    bootstrap_sample_size: int | None = None,
 ) -> tuple[Any, Any, Any]:
     cp = _cupy()
     observed = _float64_vector(observed_accuracies, name="observed_accuracies")
@@ -129,7 +136,8 @@ def tail_probabilities(
     observed_variance = cp.var(observed, ddof=1, dtype=cp.float64)
     bootstrapped = bootstrap_variances(
         null,
-        n_bootstrap=null.size,
+        n_bootstrap=int(null.size) if n_bootstrap is None else n_bootstrap,
+        sample_size=bootstrap_sample_size,
         seed=bootstrap_seed,
         indices=bootstrap_indices,
     )

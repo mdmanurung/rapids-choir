@@ -1,0 +1,8 @@
+executor: slurm
+jobs: 16
+latency-wait: 120
+rerun-incomplete: true
+printshellcmds: true
+default-resources:
+  mem_mb: 4000
+  runtime: 60

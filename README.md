@@ -20,6 +20,36 @@ Development evidence is built by Snakemake:
 snakemake --cores 1 validation/evidence/gate0.json
 ```
 
+## Gate 2 comparator validation
+
+Gate 2 is a hard stop: hierarchy work is prohibited until the sealed holdout
+evidence passes. The parent Zenodo archive is retained under the configured LTS
+raw root; selected extracted objects and H5AD files stay under the configured
+scratch work root.
+
+Run the stages separately with the R 4.5.1 Snakemake executable and the tracked
+Slurm profile:
+
+```bash
+/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51/bin/snakemake \
+  --profile workflow/profiles/slurm gate2_development
+/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51/bin/snakemake \
+  --profile workflow/profiles/slurm gate2_calibration
+```
+
+After calibration, review and locally commit only
+`validation/evidence/rf_profile.json`. Do not push. Holdout extraction fails
+unless that file is tracked, committed, and unchanged. Only then run:
+
+```bash
+/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51/bin/snakemake \
+  --profile workflow/profiles/slurm gate2_holdout
+```
+
+`gate2_development` has no holdout dependency. Calibration expands the frozen
+12-profile grid into typed-L40S jobs with five same-seed repeats. Holdout
+acceptance uses only the committed winner and writes `validation/evidence/gate2.json`.
+
 No CPU backend or fallback is provided. Importing `rapids_choir` is deliberately
 CUDA-independent; GPU dependencies are loaded only when GPU functionality is
 called.

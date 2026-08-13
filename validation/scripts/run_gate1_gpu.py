@@ -83,6 +83,7 @@ def main() -> None:
             "tests/gpu/test_statistics.py",
             "tests/gpu/test_sampling.py",
             "tests/gpu/test_doctor.py",
+            "tests/gpu/test_comparator.py",
             "-q",
         ],
     )

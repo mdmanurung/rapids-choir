@@ -5,9 +5,15 @@ gpu_python: /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu
 # the interpreter by path without it falls through to a system CUDA 13 toolkit.
 gpu_prefix: /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128
 
+data:
+  raw_root: /exports/archive/hg-funcgenom-research/mdmanurung/rapids-choir-data/raw
+  work_root: /exports/para-lipg-hpc/mdmanurung/rapids-choir-data
+  zenodo_archive_url: https://zenodo.org/records/14641222/files/Simulated_Datasets.tar.gz?download=1
+
 slurm:
   gpu: L40S
   gres: "gpu:L40S:1"
+  partition: gpu-long
   cpus_per_task: 8
   mem_mb: 64000
-  runtime_minutes: 120
+  runtime_minutes: 10080
