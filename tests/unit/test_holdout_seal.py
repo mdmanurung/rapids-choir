@@ -29,6 +29,73 @@ def run(root: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
 
 
+def test_dataset_member_selection_requires_counts_and_metadata(tmp_path: Path) -> None:
+    inventory = {
+        "members": [
+            {
+                "name": "Simulated_Datasets/Simulated_Dataset_1/RNA_matrix_raw.rds",
+                "type": "file",
+                "bytes": 101,
+            },
+            {
+                "name": "Simulated_Datasets/Simulated_Dataset_1/cell_metadata.csv",
+                "type": "file",
+                "bytes": 102,
+            },
+            {
+                "name": "Simulated_Datasets/Simulated_Dataset_10/RNA_matrix_raw.rds",
+                "type": "file",
+                "bytes": 201,
+            },
+            {
+                "name": "Simulated_Datasets/Simulated_Dataset_10/cell_metadata.csv",
+                "type": "file",
+                "bytes": 202,
+            },
+        ]
+    }
+
+    selected = EXTRACT_MODULE.select_members(
+        inventory, ["Simulated Dataset 1"], tmp_path
+    )
+
+    assert set(selected) == {
+        "Simulated_Datasets/Simulated_Dataset_1/RNA_matrix_raw.rds",
+        "Simulated_Datasets/Simulated_Dataset_1/cell_metadata.csv",
+    }
+    assert {record["kind"] for record in selected.values()} == {
+        "counts",
+        "metadata",
+    }
+    assert {record["output"].name for record in selected.values()} == {
+        "simulated_dataset_001.rds",
+        "simulated_dataset_001.metadata.csv",
+    }
+
+
+def test_dataset_member_selection_fails_closed_without_metadata(tmp_path: Path) -> None:
+    inventory = {
+        "members": [
+            {
+                "name": "Simulated_Datasets/Simulated_Dataset_1/RNA_matrix_raw.rds",
+                "type": "file",
+                "bytes": 101,
+            }
+        ]
+    }
+
+    with pytest.raises(RuntimeError, match="exactly one metadata"):
+        EXTRACT_MODULE.select_members(inventory, ["Simulated Dataset 1"], tmp_path)
+
+
+def test_dataset_member_match_rejects_traversal() -> None:
+    assert not EXTRACT_MODULE.member_matches(
+        "../Simulated_Dataset_1/RNA_matrix_raw.rds",
+        "Simulated Dataset 1",
+        "counts",
+    )
+
+
 def test_holdout_profile_must_be_tracked_committed_and_unchanged(
     tmp_path: Path,
 ) -> None:

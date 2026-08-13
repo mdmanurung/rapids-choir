@@ -9,16 +9,24 @@ import json
 import re
 import tarfile
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 from check_profile_seal import verify_profile_seal
 from gate2_common import atomic_json, dataset_number, dataset_slug
+
+ARCHIVE_FILES = {
+    "counts": ("RNA_matrix_raw.rds", ".rds"),
+    "metadata": ("cell_metadata.csv", ".metadata.csv"),
+}
 
 
 def normalized(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
-def member_matches(name: str, dataset_id: str) -> bool:
+def member_matches(name: str, dataset_id: str, kind: str) -> bool:
+    if kind not in ARCHIVE_FILES:
+        raise ValueError(f"unknown dataset file kind: {kind}")
     number = dataset_number(dataset_id)
     targets = {
         f"simulateddataset{number}",
@@ -26,8 +34,50 @@ def member_matches(name: str, dataset_id: str) -> bool:
         f"sim{number}",
     }
     path = PurePosixPath(name)
-    components = [normalized(part.rsplit(".", 1)[0]) for part in path.parts]
-    return path.suffix.lower() == ".rds" and bool(targets & set(components))
+    if path.is_absolute() or ".." in path.parts:
+        return False
+    components = [normalized(part) for part in path.parent.parts]
+    expected_name, _ = ARCHIVE_FILES[kind]
+    return path.name.casefold() == expected_name.casefold() and bool(
+        targets & set(components)
+    )
+
+
+def select_members(
+    inventory: dict[str, Any], dataset_ids: list[str], output_root: Path
+) -> dict[str, dict[str, Any]]:
+    """Resolve exactly one counts and metadata member for every dataset."""
+
+    files = [
+        member
+        for member in inventory["members"]
+        if member.get("type") == "file"
+    ]
+    selected: dict[str, dict[str, Any]] = {}
+    for dataset_id in dataset_ids:
+        for kind, (_, output_suffix) in ARCHIVE_FILES.items():
+            matches = [
+                member
+                for member in files
+                if member_matches(str(member["name"]), dataset_id, kind)
+            ]
+            if len(matches) != 1:
+                names = [str(member["name"]) for member in matches]
+                raise RuntimeError(
+                    f"expected exactly one {kind} archive member for "
+                    f"{dataset_id!r}; got {names}"
+                )
+            member = matches[0]
+            member_name = str(member["name"])
+            if member_name in selected:
+                raise RuntimeError(f"archive member selected twice: {member_name}")
+            selected[member_name] = {
+                "dataset_id": dataset_id,
+                "kind": kind,
+                "expected_bytes": int(member["bytes"]),
+                "output": output_root / f"{dataset_slug(dataset_id)}{output_suffix}",
+            }
+    return selected
 
 
 def validate_holdout_seal(root: Path, seal_path: Path) -> dict[str, str | int]:
@@ -83,34 +133,32 @@ def main() -> None:
         raise RuntimeError("inventory archive path does not match selected archive")
     if inventory.get("archive_md5") != verification.get("md5"):
         raise RuntimeError("inventory MD5 does not match verification evidence")
-    file_names = [
-        member["name"]
-        for member in inventory["members"]
-        if member["type"] == "file"
-    ]
-    selected: dict[str, str] = {}
-    for dataset_id in args.dataset:
-        matches = [name for name in file_names if member_matches(name, dataset_id)]
-        if len(matches) != 1:
-            raise RuntimeError(
-                f"expected exactly one archive member for {dataset_id!r}; got {matches}"
-            )
-        selected[matches[0]] = dataset_id
-
     args.output_root.mkdir(parents=True, exist_ok=True)
-    records = []
-    with tarfile.open(archive_path, mode="r:gz") as archive:
-        for member_name, dataset_id in selected.items():
-            member = archive.getmember(member_name)
+    selected = select_members(inventory, args.dataset, args.output_root)
+    records = {
+        dataset_id: {"dataset_id": dataset_id, "files": {}}
+        for dataset_id in args.dataset
+    }
+    remaining = set(selected)
+    # Stream the gzip archive once. Random seeks would repeatedly decompress the
+    # 27.6 GB archive and make selective extraction needlessly expensive.
+    with tarfile.open(archive_path, mode="r|gz") as archive:
+        for member in archive:
+            member_name = member.name
+            if member_name not in remaining:
+                continue
+            selection = selected[member_name]
             if not member.isfile() or member.issym() or member.islnk():
                 raise RuntimeError(
                     f"unsafe/non-file selected archive member: {member_name}"
                 )
+            if member.size != selection["expected_bytes"]:
+                raise RuntimeError(f"inventory size mismatch for {member_name}")
             source = archive.extractfile(member)
             if source is None:
                 raise RuntimeError(f"could not read selected member: {member_name}")
-            output = args.output_root / f"{dataset_slug(dataset_id)}.rds"
-            temporary = output.with_suffix(output.suffix + ".tmp")
+            output = Path(selection["output"])
+            temporary = Path(f"{output}.tmp")
             digest = hashlib.sha256()
             size = 0
             with source, temporary.open("wb") as handle:
@@ -124,19 +172,26 @@ def main() -> None:
             if size != member.size:
                 raise RuntimeError(f"extracted size mismatch for {member_name}")
             temporary.replace(output)
-            records.append(
-                {
-                    "dataset_id": dataset_id,
-                    "archive_member": member_name,
-                    "path": str(output.resolve()),
-                    "bytes": size,
-                    "sha256": digest.hexdigest(),
-                }
-            )
+            dataset_id = str(selection["dataset_id"])
+            kind = str(selection["kind"])
+            records[dataset_id]["files"][kind] = {
+                "archive_member": member_name,
+                "path": str(output.resolve()),
+                "bytes": size,
+                "sha256": digest.hexdigest(),
+            }
+            remaining.remove(member_name)
+            if not remaining:
+                break
+    if remaining:
+        raise RuntimeError(
+            "selected members were not found while streaming: "
+            f"{sorted(remaining)}"
+        )
     atomic_json(
         args.manifest,
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "mode": args.mode,
             "archive_md5": inventory["archive_md5"],
             "profile_seal": (
@@ -144,7 +199,10 @@ def main() -> None:
             ),
             "profile_sha256": seal.get("profile_sha256") if seal else None,
             "profile_commit": seal.get("profile_commit") if seal else None,
-            "datasets": sorted(records, key=lambda record: record["dataset_id"]),
+            "datasets": sorted(
+                records.values(),
+                key=lambda record: dataset_number(str(record["dataset_id"])),
+            ),
         },
     )
 

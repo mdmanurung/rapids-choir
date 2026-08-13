@@ -13,4 +13,9 @@ authors' 230 simulated benchmarking datasets.
 
 The 27.6 GB parent archive is intentionally not committed. Snakemake verifies
 its reported MD5 before extraction. Development and holdout members are frozen
-in `validation/fixtures/specs/datasets.yaml`.
+in `validation/fixtures/specs/datasets.yaml`. Each selected dataset is a pair:
+`RNA_matrix_raw.rds` contains the feature-by-cell raw-count matrix and
+`cell_metadata.csv` contains `CellID` plus the candidate ground-truth fields.
+The extraction manifest records a SHA-256 digest for both files; preprocessing
+aligns metadata to matrix column identifiers before constructing a Seurat
+object.

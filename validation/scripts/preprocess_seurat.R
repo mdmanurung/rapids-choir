@@ -14,7 +14,8 @@ option_value <- function(name) {
   args[[position + 1L]]
 }
 
-input <- option_value("--input")
+counts_input <- option_value("--counts")
+metadata_input <- option_value("--metadata")
 output <- option_value("--output")
 truth_contract_path <- option_value("--truth-contract")
 dataset_id <- option_value("--dataset-id")
@@ -22,25 +23,67 @@ expected_cells <- as.integer(option_value("--expected-cells"))
 expected_groups <- as.integer(option_value("--expected-groups"))
 
 truth_contract <- fromJSON(truth_contract_path, simplifyVector = TRUE)
+if (!identical(truth_contract$status, "PASS")) {
+  stop("Truth-label contract is not PASS")
+}
 truth_column <- truth_contract$truth_column
-object <- readRDS(input)
-if (!inherits(object, "Seurat")) {
-  stop("Input is not a Seurat object: ", input)
+cell_id_column <- truth_contract$cell_id_column
+counts <- readRDS(counts_input)
+if (!(is.matrix(counts) || inherits(counts, "Matrix"))) {
+  stop("Input is not a matrix-like raw-count object: ", counts_input)
 }
-if (ncol(object) != expected_cells) {
-  stop("Expected ", expected_cells, " cells, got ", ncol(object))
+if (length(dim(counts)) != 2L || ncol(counts) != expected_cells) {
+  stop("Expected ", expected_cells, " cells, got ", ncol(counts))
 }
-if (!truth_column %in% colnames(object[[]])) {
+if (
+  is.null(rownames(counts)) || is.null(colnames(counts)) ||
+    anyDuplicated(rownames(counts)) || anyDuplicated(colnames(counts)) ||
+    any(!nzchar(rownames(counts))) || any(!nzchar(colnames(counts)))
+) {
+  stop("Count matrix requires unique, non-empty feature and cell identifiers")
+}
+count_values <- if (inherits(counts, "sparseMatrix")) counts@x else as.vector(counts)
+if (!is.numeric(count_values) || any(!is.finite(count_values)) || any(count_values < 0)) {
+  stop("Counts must be finite, numeric, and non-negative")
+}
+metadata <- read.csv(
+  metadata_input,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+if (nrow(metadata) != expected_cells) {
+  stop("Expected ", expected_cells, " metadata rows, got ", nrow(metadata))
+}
+if (!cell_id_column %in% colnames(metadata)) {
+  stop("Frozen cell identifier field is absent: ", cell_id_column)
+}
+cell_ids <- as.character(metadata[[cell_id_column]])
+if (
+  anyNA(cell_ids) || any(!nzchar(cell_ids)) || anyDuplicated(cell_ids) ||
+    !setequal(cell_ids, colnames(counts))
+) {
+  stop("Metadata cell identifiers do not match count-matrix columns")
+}
+rownames(metadata) <- cell_ids
+metadata <- metadata[colnames(counts), , drop = FALSE]
+if (!identical(rownames(metadata), colnames(counts))) {
+  stop("Could not align metadata to count-matrix columns")
+}
+if (!truth_column %in% colnames(metadata)) {
   stop("Frozen truth field is absent: ", truth_column)
 }
-truth <- as.character(object[[truth_column, drop = TRUE]])
+truth <- as.character(metadata[[truth_column]])
 if (anyNA(truth) || length(unique(truth)) != expected_groups) {
   stop("Truth-label cardinality contract failed for ", dataset_id)
 }
 
-if ("RNA" %in% Assays(object)) {
-  DefaultAssay(object) <- "RNA"
-}
+object <- CreateSeuratObject(
+  counts = counts,
+  assay = "RNA",
+  project = dataset_id,
+  meta.data = metadata
+)
+DefaultAssay(object) <- "RNA"
 assay <- DefaultAssay(object)
 counts <- LayerData(object, assay = assay, layer = "counts")
 if (nrow(counts) < 2000L) {
@@ -115,6 +158,7 @@ adata <- AnnData(
   uns = list(
     dataset_id = dataset_id,
     truth_source_column = truth_column,
+    cell_id_source_column = cell_id_column,
     preprocessing_contract = "LogNormalize:10000|vst:2000|PCA:50|NN:15"
   )
 )

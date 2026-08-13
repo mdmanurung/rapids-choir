@@ -66,6 +66,11 @@ def raw_path(mode, record):
     return f"{root}/{dataset_slug(record['id'])}.rds"
 
 
+def metadata_path(mode, record):
+    root = DEV_RAW_ROOT if mode == "development" else HOLD_RAW_ROOT
+    return f"{root}/{dataset_slug(record['id'])}.metadata.csv"
+
+
 def h5ad_path(mode, record):
     return f"{WORK_ROOT}/{mode}/h5ad/{dataset_slug(record['id'])}.h5ad"
 
@@ -84,6 +89,8 @@ def reference_path(mode, record):
 
 DEV_RDS = [raw_path("development", record) for record in DEVELOPMENT]
 HOLD_RDS = [raw_path("holdout", record) for record in HOLDOUT]
+DEV_METADATA = [metadata_path("development", record) for record in DEVELOPMENT]
+HOLD_METADATA = [metadata_path("holdout", record) for record in HOLDOUT]
 DEV_H5AD = [h5ad_path("development", record) for record in DEVELOPMENT]
 HOLD_H5AD = [h5ad_path("holdout", record) for record in HOLDOUT]
 DEV_DATA_MANIFESTS = [
@@ -146,6 +153,7 @@ def truth_arguments(records):
                     str(record["ground_truth_groups"]),
                     str(record["cells"]),
                     raw_path("development", record),
+                    metadata_path("development", record),
                 )
             )
         )
@@ -346,7 +354,8 @@ rule extract_development_datasets:
         script="validation/scripts/extract_datasets.py",
     output:
         manifest=DEV_EXTRACT_MANIFEST,
-        datasets=DEV_RDS,
+        counts=DEV_RDS,
+        metadata=DEV_METADATA,
     params:
         datasets=extraction_arguments(DEVELOPMENT),
         output_root=DEV_RAW_ROOT,
@@ -364,7 +373,8 @@ rule extract_development_datasets:
 
 rule discover_development_truth_label:
     input:
-        datasets=DEV_RDS,
+        counts=DEV_RDS,
+        metadata=DEV_METADATA,
         extraction=DEV_EXTRACT_MANIFEST,
         script="validation/scripts/discover_truth_label.R",
     output:
@@ -383,7 +393,10 @@ rule discover_development_truth_label:
 
 rule preprocess_development_dataset:
     input:
-        raw=lambda wildcards: raw_path(
+        counts=lambda wildcards: raw_path(
+            "development", DEV_BY_SLUG[wildcards.dataset]
+        ),
+        metadata=lambda wildcards: metadata_path(
             "development", DEV_BY_SLUG[wildcards.dataset]
         ),
         truth=TRUTH_CONTRACT,
@@ -404,7 +417,8 @@ rule preprocess_development_dataset:
     wildcard_constraints:
         dataset="|".join(DEV_BY_SLUG),
     shell:
-        "{config[rscript]} --vanilla {input.script} --input {input.raw:q} "
+        "{config[rscript]} --vanilla {input.script} --counts {input.counts:q} "
+        "--metadata {input.metadata:q} "
         "--output {output:q} --truth-contract {input.truth:q} "
         "--dataset-id {params.dataset_id:q} --expected-cells {params.cells} "
         "--expected-groups {params.groups} > {log:q} 2>&1"
@@ -556,7 +570,8 @@ rule extract_holdout_datasets:
         script="validation/scripts/extract_datasets.py",
     output:
         manifest=HOLD_EXTRACT_MANIFEST,
-        datasets=HOLD_RDS,
+        counts=HOLD_RDS,
+        metadata=HOLD_METADATA,
     params:
         datasets=extraction_arguments(HOLDOUT),
         output_root=HOLD_RAW_ROOT,
@@ -575,7 +590,12 @@ rule extract_holdout_datasets:
 
 rule preprocess_holdout_dataset:
     input:
-        raw=lambda wildcards: raw_path("holdout", HOLD_BY_SLUG[wildcards.dataset]),
+        counts=lambda wildcards: raw_path(
+            "holdout", HOLD_BY_SLUG[wildcards.dataset]
+        ),
+        metadata=lambda wildcards: metadata_path(
+            "holdout", HOLD_BY_SLUG[wildcards.dataset]
+        ),
         truth=TRUTH_CONTRACT,
         seal=PROFILE_SEAL,
         script="validation/scripts/preprocess_seurat.R",
@@ -595,7 +615,8 @@ rule preprocess_holdout_dataset:
     wildcard_constraints:
         dataset="|".join(HOLD_BY_SLUG),
     shell:
-        "{config[rscript]} --vanilla {input.script} --input {input.raw:q} "
+        "{config[rscript]} --vanilla {input.script} --counts {input.counts:q} "
+        "--metadata {input.metadata:q} "
         "--output {output:q} --truth-contract {input.truth:q} "
         "--dataset-id {params.dataset_id:q} --expected-cells {params.cells} "
         "--expected-groups {params.groups} > {log:q} 2>&1"
