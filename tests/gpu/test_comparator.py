@@ -15,6 +15,7 @@ cps = pytest.importorskip("cupyx.scipy.sparse")
 
 import rapids_choir._comparator as engine  # noqa: E402
 from rapids_choir._comparator import ChoirComparator  # noqa: E402
+from rapids_choir._enums import RuleSet  # noqa: E402
 from rapids_choir.config import ComparisonConfig  # noqa: E402
 from rapids_choir.exceptions import (  # noqa: E402
     GraphSemanticError,
@@ -136,6 +137,66 @@ def test_batch_metrics_and_complete_records_are_present() -> None:
     assert result.memory.estimated_bytes > 0
     assert result.timings.total_seconds > 0
     assert result.compatibility_aliases["decision"]
+
+
+@pytest.mark.gpu
+def test_batch_summaries_preserve_reference_position_quirks() -> None:
+    fixture = json.loads(
+        (
+            ROOT / "validation/fixtures/generated/batch_positional_metrics.json"
+        ).read_text()
+    )
+    observed = cp.asarray(
+        fixture["flattened_observed_accuracies"], dtype=cp.float64
+    )
+    eligible = cp.asarray([0, 1], dtype=cp.int32)
+    batches = cp.asarray([0] * 10 + [1] * 10 + [0] * 10 + [1] * 10, dtype=cp.int32)
+    cluster1 = cp.arange(0, 20, dtype=cp.int64)
+    cluster2 = cp.arange(20, 40, dtype=cp.int64)
+
+    compatibility = fast_config(rules="choir_v0_3_0")
+    _, compatibility_rounds, _ = engine._batch_sampling_plan(
+        batches, cluster1, cluster2, compatibility
+    )
+    cp.testing.assert_array_equal(
+        compatibility_rounds, cp.asarray([0, 1, 0], dtype=cp.int32)
+    )
+    means, _ = engine._batch_accuracy_summaries(
+        observed, eligible, compatibility_rounds, RuleSet.CHOIR_V0_3_0
+    )
+    assert means == pytest.approx({"0": 0.7, "1": 0.62})
+
+    corrected = fast_config(rules="corrected")
+    _, corrected_rounds, _ = engine._batch_sampling_plan(
+        batches, cluster1, cluster2, corrected
+    )
+    cp.testing.assert_array_equal(
+        corrected_rounds, cp.asarray([0, 1], dtype=cp.int32)
+    )
+    means, _ = engine._batch_accuracy_summaries(
+        observed, eligible, corrected_rounds, RuleSet.CORRECTED
+    )
+    assert means == pytest.approx({"0": 0.61, "1": 0.81})
+
+
+@pytest.mark.gpu
+def test_repeated_errors_distinguish_stable_ids_from_sampled_positions() -> None:
+    compatibility_count, compatibility_mean = engine._repeat_summary(
+        [cp.asarray([0], dtype=cp.int64), cp.asarray([1], dtype=cp.int64)],
+        cluster_size=20,
+        n_iterations=4,
+        n_per_half=5,
+    )
+    corrected_count, corrected_mean = engine._repeat_summary(
+        [cp.asarray([7], dtype=cp.int64), cp.asarray([7], dtype=cp.int64)],
+        cluster_size=20,
+        n_iterations=4,
+        n_per_half=5,
+    )
+    assert int(compatibility_count.item()) == 0
+    assert float(compatibility_mean.item()) == 0.0
+    assert int(corrected_count.item()) == 1
+    assert float(corrected_mean.item()) == pytest.approx(0.125)
 
 
 @pytest.mark.gpu

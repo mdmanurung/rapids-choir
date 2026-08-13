@@ -245,7 +245,17 @@ def _batch_sampling_plan(
     eligible = eligible_batch_codes(batch_codes, cluster1, cluster2)
     if eligible.size == 0:
         return eligible, cp.empty(0, dtype=cp.int32), 0
-    round_batches = eligible[cp.arange(config.split_rounds) % eligible.size]
+    repetitions, remainder = divmod(config.split_rounds, int(eligible.size))
+    round_batches = cp.tile(eligible, repetitions)
+    if remainder:
+        round_batches = cp.concatenate((round_batches, eligible[:remainder]))
+    elif config.rules is RuleSet.CHOIR_V0_3_0:
+        # Frozen R expression ``batches[1:(rounds %% length(batches))]`` uses
+        # ``1:0`` when the remainder is zero. Positive/zero R indexing ignores
+        # zero but retains index one, appending the first batch. The extra code
+        # is never sampled because the RF loop has only ``split_rounds`` rounds;
+        # it does, however, affect the positional per-batch summary below.
+        round_batches = cp.concatenate((round_batches, eligible[:1]))
     counts = []
     for code in eligible:
         counts.append(cp.sum(batch_codes[cluster1] == code))
@@ -329,6 +339,36 @@ def _repeat_summary(
         * cp.float64(n_per_half / cluster_size)
     )
     return number, mean
+
+
+def _batch_accuracy_summaries(
+    observed_values: Any,
+    eligible_batches: Any,
+    round_batches: Any,
+    rules: RuleSet,
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Return corrected or frozen positional per-batch accuracy summaries."""
+
+    cp = _module("cupy")
+    batch_means: dict[str, float] = {}
+    batch_variances: dict[str, float] = {}
+    for code in eligible_batches:
+        round_positions = cp.where(round_batches == code)[0]
+        if rules is RuleSet.CORRECTED:
+            positions = cp.concatenate((2 * round_positions, 2 * round_positions + 1))
+        else:
+            # Frozen R bug: positions in ``use_batch`` index the flattened
+            # accuracy vector directly rather than both complementary fits.
+            positions = round_positions
+        values = observed_values[positions]
+        name = str(int(code.item()))
+        batch_means[name] = float(cp.mean(values, dtype=cp.float64).item())
+        batch_variances[name] = (
+            float(cp.var(values, ddof=1, dtype=cp.float64).item())
+            if values.size > 1
+            else float("nan")
+        )
+    return batch_means, batch_variances
 
 
 def _empty_samples(cluster1_size: int, cluster2_size: int) -> SampleCounts:
@@ -717,7 +757,6 @@ class ChoirComparator:
         errors2: list[Any] = []
         round_seeds: list[int] = []
         fit_seeds: list[int] = []
-        round_codes: list[Any] = []
         sampling_seconds = 0.0
         densify_seconds = 0.0
         observed_fit_seconds = 0.0
@@ -730,7 +769,6 @@ class ChoirComparator:
                 code = round_batches[round_index]
                 current1 = execution1[batches[execution1] == code]
                 current2 = execution2[batches[execution2] == code]
-                round_codes.append(code)
             else:
                 current1, current2 = execution1, execution2
             round_seed = derive_seed(
@@ -861,26 +899,13 @@ class ChoirComparator:
 
         batch_means: dict[str, float] = {}
         batch_variances: dict[str, float] = {}
-        if eligible_batches is not None and round_codes:
-            codes = cp.stack(round_codes)
-            for code in eligible_batches:
-                round_positions = cp.where(codes == code)[0]
-                if config.rules is RuleSet.CORRECTED:
-                    positions = cp.concatenate(
-                        (2 * round_positions, 2 * round_positions + 1)
-                    )
-                else:
-                    # Frozen R bug: round positions index the flattened accuracy
-                    # vector rather than both complementary accuracies.
-                    positions = round_positions
-                values = observed_values[positions]
-                name = str(int(code.item()))
-                batch_means[name] = float(cp.mean(values, dtype=cp.float64).item())
-                batch_variances[name] = (
-                    float(cp.var(values, ddof=1, dtype=cp.float64).item())
-                    if values.size > 1
-                    else float("nan")
-                )
+        if eligible_batches is not None and round_batches is not None:
+            batch_means, batch_variances = _batch_accuracy_summaries(
+                observed_values,
+                eligible_batches,
+                round_batches,
+                RuleSet(config.rules),
+            )
 
         scalar_values = [
             observed_mean,
