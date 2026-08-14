@@ -60,6 +60,16 @@ include = [
   "/pyproject.toml",
   "/renv.lock",
 ]
+exclude = [
+  "/docs/wayfinder",
+  "/validation/evidence/candidates",
+  "/validation/evidence/governance/resource_ledger.jsonl",
+  "/validation/evidence/*.FAILED.json",
+  "/validation/logs",
+  "/workflow/authorization/*.json",
+  "/workflow/authorization/*.sig",
+  "/workflow/authorization/allowed_signers",
+]
 
 
 [tool.pytest.ini_options]

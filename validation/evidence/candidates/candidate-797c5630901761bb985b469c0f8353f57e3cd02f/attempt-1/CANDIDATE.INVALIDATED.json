@@ -1,0 +1,22 @@
+{
+  "candidate_commit": "797c5630901761bb985b469c0f8353f57e3cd02f",
+  "candidate_manifest_sha256": "876c617a9a4c0452405008f57e237fc6b4110d54687108e5fabc16d2171cd75b",
+  "classification": "technical_outcome",
+  "discovered_at": "2026-08-14T12:29:43.000Z",
+  "gate0_sha256": "ea7551017857f58ae931e09b6a1f47b8b8fa0607d73524b7af6582ff4b396139",
+  "gate1_static_sha256": "12503ca5d33f60a2dd90320db2dcded656bcd7dd3e127409f5b3a7ece75e9fb5",
+  "invalidated_gate": "gate1_static_packaging",
+  "method_started": true,
+  "reason": "The built sdist included untracked Wayfinder files and in-progress candidate evidence because target-specific Hatch exclusions were absent.",
+  "rerun_allowed": false,
+  "schema_version": 1,
+  "status": "INVALIDATED_TECHNICAL",
+  "tarball_sha256": "729845c3c27e1aab862d53bf94d7204c68c1d98f5d6b0531a7477f02c5adad87",
+  "unexpected_members": [
+    "docs/wayfinder/publication-readiness-repair-checklist.md",
+    "docs/wayfinder/publication-readiness-repair-handoff.md",
+    "docs/wayfinder/publication-readiness-repair-plan.md",
+    "validation/evidence/candidates/candidate-797c5630901761bb985b469c0f8353f57e3cd02f/attempt-1/candidate.json",
+    "validation/evidence/candidates/candidate-797c5630901761bb985b469c0f8353f57e3cd02f/attempt-1/gate0.json"
+  ]
+}

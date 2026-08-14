@@ -1,0 +1,109 @@
+{
+  "artifacts": [
+    {
+      "bytes": 39903,
+      "path": "dist/rapids_choir-0.1.0.dev0-py3-none-any.whl",
+      "sha256": "4c9aab67750099e9e6c639ecfba4ca0f87d50829eff911f48c8942c3f92e90af"
+    },
+    {
+      "bytes": 336660,
+      "path": "dist/rapids_choir-0.1.0.dev0.tar.gz",
+      "sha256": "729845c3c27e1aab862d53bf94d7204c68c1d98f5d6b0531a7477f02c5adad87"
+    }
+  ],
+  "candidate": {
+    "attempt": 1,
+    "dirty_state": {
+      "tracked": false,
+      "untracked_files_excluded": true
+    },
+    "manifest_sha256": "876c617a9a4c0452405008f57e237fc6b4110d54687108e5fabc16d2171cd75b",
+    "runtime_tree_sha256": "20b0980948d766da04ecdc50c013ab4a81632b4230fbbef616e982f553452ac3"
+  },
+  "checks": [
+    {
+      "command": [
+        "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/ruff",
+        "check",
+        "src",
+        "tests",
+        "validation/scripts",
+        "workflow"
+      ],
+      "returncode": 0,
+      "seconds": 0.2654639487154782,
+      "stderr": "",
+      "stdout": "All checks passed!\n"
+    },
+    {
+      "command": [
+        "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/mypy",
+        "src/rapids_choir"
+      ],
+      "returncode": 0,
+      "seconds": 7.158198785036802,
+      "stderr": "",
+      "stdout": "Success: no issues found in 20 source files\n"
+    },
+    {
+      "command": [
+        "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python3.12",
+        "-m",
+        "pytest",
+        "tests/unit",
+        "-q"
+      ],
+      "returncode": 0,
+      "seconds": 23.82517444808036,
+      "stderr": "",
+      "stdout": "........................................................................ [ 91%]\n.......                                                                  [100%]\n79 passed in 4.81s\n"
+    },
+    {
+      "command": [
+        "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python3.12",
+        "-m",
+        "build",
+        "--no-isolation"
+      ],
+      "returncode": 0,
+      "seconds": 16.264446693938226,
+      "stderr": "* Getting build dependencies for sdist...\n* Building sdist...\n* Building wheel from sdist\n* Getting build dependencies for wheel...\n* Building wheel...\n",
+      "stdout": "Successfully built rapids_choir-0.1.0.dev0.tar.gz and rapids_choir-0.1.0.dev0-py3-none-any.whl\n"
+    },
+    {
+      "command": [
+        "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python3.12",
+        "-c",
+        "import json,sys,rapids_choir; names=('cupy','rmm','cuml','cugraph','rapids_singlecell'); print(json.dumps([n for n in names if n in sys.modules]))"
+      ],
+      "returncode": 0,
+      "seconds": 0.3386320718564093,
+      "stderr": "",
+      "stdout": "[]\n"
+    }
+  ],
+  "commit": "797c5630901761bb985b469c0f8353f57e3cd02f",
+  "conda_packages": {
+    "cugraph": "26.06.00",
+    "cuml": "26.06.00",
+    "rapids": "26.06.01",
+    "rmm": "26.06.00"
+  },
+  "functional_validation": false,
+  "gate": 1,
+  "generated_at": "2026-08-14T12:27:22.632369+00:00",
+  "limitations": [
+    "This evidence covers only imports, schemas, logic, typing, and packaging.",
+    "It is not GPU functional or scientific acceptance evidence."
+  ],
+  "locks": {
+    "workflow/envs/rapids-cu128-linux-64.lock": "654be2a7d229f0830f255932377ebcffcf07776ddadca42093c69ba05b378467",
+    "workflow/envs/rapids-cu128-pip.lock": "ef2f81786d5b23423566a832bc0e87125b00388451deed2a4388222d284cdf53"
+  },
+  "python": "3.12.13",
+  "python_executable": "/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python3.12",
+  "rapids_singlecell_cu12": "0.16.1",
+  "schema_version": 1,
+  "scope": "cpu_static_only",
+  "status": "PASS"
+}

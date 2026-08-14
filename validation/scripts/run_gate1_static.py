@@ -9,7 +9,9 @@ import importlib.metadata
 import json
 import subprocess
 import sys
+import tarfile
 import time
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -30,6 +32,40 @@ EXPECTED_CONDA_PACKAGES = {
     "rmm": "26.06.00",
 }
 RUN_STAGE = "preflight"
+
+
+def forbidden_packaged_members(members: list[str]) -> list[str]:
+    """Return generated, private, or unreviewed paths forbidden in artifacts."""
+
+    forbidden = []
+    for member in members:
+        normalized = "/" + member.lstrip("/")
+        authorization_path = "/workflow/authorization/" in normalized
+        authorization_readme = normalized.endswith(
+            "/workflow/authorization/README.md"
+        )
+        if (
+            "/docs/wayfinder/" in normalized
+            or "/validation/evidence/candidates/" in normalized
+            or "/validation/logs/" in normalized
+            or normalized.endswith(".FAILED.json")
+            or normalized.endswith(
+                "/validation/evidence/governance/resource_ledger.jsonl"
+            )
+            or (authorization_path and not authorization_readme)
+        ):
+            forbidden.append(member)
+    return sorted(forbidden)
+
+
+def archive_members(path: Path) -> list[str]:
+    if path.name.endswith(".tar.gz"):
+        with tarfile.open(path, mode="r:gz") as archive:
+            return archive.getnames()
+    if path.suffix == ".whl":
+        with zipfile.ZipFile(path) as archive:
+            return archive.namelist()
+    raise RuntimeError(f"unsupported package artifact: {path}")
 
 
 def sha256(path: Path) -> str:
@@ -128,7 +164,11 @@ def main() -> None:
     status = "FAIL" if commands_failed or cuda_imported else "PASS"
 
     artifacts = []
+    forbidden_members: dict[str, list[str]] = {}
     for path in sorted((root / "dist").glob("rapids_choir-0.1.0.dev0*")):
+        forbidden = forbidden_packaged_members(archive_members(path))
+        if forbidden:
+            forbidden_members[path.name] = forbidden
         artifacts.append(
             {
                 "path": path.relative_to(root).as_posix(),
@@ -137,6 +177,8 @@ def main() -> None:
             }
         )
     if len(artifacts) != 2:
+        status = "FAIL"
+    if forbidden_members:
         status = "FAIL"
 
     revision = run(root, ["git", "rev-parse", "HEAD"])
@@ -163,6 +205,7 @@ def main() -> None:
             pip_lock.relative_to(root).as_posix(): sha256(pip_lock),
         },
         "artifacts": artifacts,
+        "forbidden_package_members": forbidden_members,
         "checks": checks,
         "limitations": [
             "This evidence covers only imports, schemas, logic, typing, and packaging.",
