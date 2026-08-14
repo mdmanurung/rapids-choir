@@ -1,9 +1,20 @@
 rscript: /exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51/bin/Rscript
-python: /exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/scale_py/bin/python
+python: /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python
 gpu_python: /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python
 # CuPy only finds the pinned CUDA 12.8 toolkit when CONDA_PREFIX is set; running
 # the interpreter by path without it falls through to a system CUDA 13 toolkit.
 gpu_prefix: /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128
+
+# Attempts are append-only. Increment only after an admissible infrastructure
+# invalidation; source changes create a new candidate commit automatically.
+candidate_attempt: 1
+
+authorization:
+  operator: mdmanurung
+  allowed_signers: workflow/authorization/allowed_signers
+  comparator_confirm:
+    manifest: workflow/authorization/comparator_confirm.json
+    signature: workflow/authorization/comparator_confirm.sig
 
 data:
   raw_root: /exports/archive/hg-funcgenom-research/mdmanurung/rapids-choir-data/raw

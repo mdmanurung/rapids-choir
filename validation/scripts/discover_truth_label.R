@@ -13,6 +13,18 @@ option_value <- function(name) {
 }
 
 output <- option_value("--output")
+extraction_manifest_path <- option_value("--extraction-manifest")
+if (file.exists(output)) {
+  stop("Immutable truth-label contract already exists: ", output)
+}
+extraction <- fromJSON(extraction_manifest_path, simplifyVector = FALSE)
+if (!identical(extraction$status, "FROZEN") || !identical(extraction$mode, "development")) {
+  stop("Development extraction manifest is not FROZEN")
+}
+extracted_by_id <- setNames(
+  extraction$datasets,
+  vapply(extraction$datasets, function(record) record$dataset_id, character(1L))
+)
 dataset_positions <- which(args == "--dataset")
 if (length(dataset_positions) == 0L) {
   stop("At least one --dataset record is required")
@@ -34,6 +46,30 @@ for (position in dataset_positions) {
   expected_cells <- as.integer(fields[[3L]])
   counts_path <- fields[[4L]]
   metadata_path <- fields[[5L]]
+  extracted <- extracted_by_id[[dataset_id]]
+  if (is.null(extracted)) {
+    stop("Dataset is absent from extraction manifest: ", dataset_id)
+  }
+  if (
+    !identical(
+      normalizePath(counts_path, mustWork = TRUE),
+      normalizePath(extracted$files$counts$path, mustWork = TRUE)
+    ) ||
+      !identical(
+        normalizePath(metadata_path, mustWork = TRUE),
+        normalizePath(extracted$files$metadata$path, mustWork = TRUE)
+      ) ||
+      !identical(
+        digest::digest(counts_path, algo = "sha256", file = TRUE, serialize = FALSE),
+        extracted$files$counts$sha256
+      ) ||
+      !identical(
+        digest::digest(metadata_path, algo = "sha256", file = TRUE, serialize = FALSE),
+        extracted$files$metadata$sha256
+      )
+  ) {
+    stop("Extracted input identity mismatch for ", dataset_id)
+  }
   counts <- readRDS(counts_path)
   if (!(is.matrix(counts) || inherits(counts, "Matrix"))) {
     stop("Expected a matrix-like raw-count object for ", dataset_id)
@@ -52,8 +88,11 @@ for (position in dataset_positions) {
     stop("Count matrix requires unique, non-empty feature and cell identifiers")
   }
   count_values <- if (inherits(counts, "sparseMatrix")) counts@x else as.vector(counts)
-  if (!is.numeric(count_values) || any(!is.finite(count_values)) || any(count_values < 0)) {
-    stop("Counts must be finite, numeric, and non-negative for ", dataset_id)
+  if (
+    !is.numeric(count_values) || any(!is.finite(count_values)) ||
+      any(count_values < 0) || any(count_values != floor(count_values))
+  ) {
+    stop("Counts must be finite, non-negative integers for ", dataset_id)
   }
   metadata <- read.csv(
     metadata_path,
@@ -124,6 +163,12 @@ if (identical(common[[1L]], common_identifiers[[1L]])) {
 payload <- list(
   schema_version = 2L,
   status = "PASS",
+  candidate = extraction$candidate,
+  candidate_manifest_sha256 = extraction$candidate_manifest_sha256,
+  extraction_manifest = normalizePath(extraction_manifest_path, mustWork = TRUE),
+  extraction_manifest_sha256 = digest::digest(
+    extraction_manifest_path, algo = "sha256", file = TRUE, serialize = FALSE
+  ),
   truth_column = unname(common[[1L]]),
   cell_id_column = unname(common_identifiers[[1L]]),
   datasets = records

@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from gate2_common import atomic_json, file_hash
+from gate2_common import file_hash, immutable_json, install_immutable_file
 
 
 def git_revision(root: Path) -> str:
@@ -66,6 +67,10 @@ def aggregate_runs(
     profile_id: str | None = None
     profile: dict[str, Any] | None = None
     profile_evidence: dict[str, Any] | None = None
+    comparator_contract: dict[str, Any] | None = None
+    authorization: dict[str, Any] | None = None
+    candidate: dict[str, Any] | None = None
+    resource_reservation: dict[str, Any] | None = None
     environment: dict[str, Any] | None = None
     device_names: set[str] = set()
     compute_capabilities: set[tuple[int, ...]] = set()
@@ -98,19 +103,35 @@ def aggregate_runs(
         shard_profile_id = str(summary["profile_id"])
         shard_profile = summary["profile"]
         shard_profile_evidence = summary.get("profile_evidence")
+        shard_comparator_contract = summary.get("comparator_contract")
+        shard_authorization = summary.get("authorization")
+        shard_candidate = summary.get("candidate")
+        shard_resource_reservation = summary.get("resource_reservation")
         shard_environment = summary["environment"]
         if profile_id is None:
             profile_id = shard_profile_id
             profile = shard_profile
             profile_evidence = shard_profile_evidence
+            comparator_contract = shard_comparator_contract
+            authorization = shard_authorization
+            candidate = shard_candidate
+            resource_reservation = shard_resource_reservation
             environment = shard_environment
         elif (
             shard_profile_id != profile_id
             or not _same_json(shard_profile, profile)
             or not _same_json(shard_profile_evidence, profile_evidence)
+            or not _same_json(shard_comparator_contract, comparator_contract)
+            or not _same_json(shard_authorization, authorization)
+            or not _same_json(shard_candidate, candidate)
+            or not _same_json(
+                shard_resource_reservation, resource_reservation
+            )
             or not _same_json(shard_environment, environment)
         ):
-            raise RuntimeError("GPU shard profile or environment drift detected")
+            raise RuntimeError(
+                "GPU shard profile, contract, authorization, or environment drift"
+            )
 
         shard_inputs = summary.get("inputs", [])
         if len(shard_inputs) != 1 or shard_inputs[0]["dataset_id"] != dataset_id:
@@ -172,9 +193,11 @@ def aggregate_runs(
 
     combined = combined.sort_values(key, kind="stable").reset_index(drop=True)
     output_parquet.parent.mkdir(parents=True, exist_ok=True)
-    temporary = output_parquet.with_suffix(output_parquet.suffix + ".tmp")
+    temporary = output_parquet.with_suffix(
+        output_parquet.suffix + f".tmp.{os.getpid()}"
+    )
     combined.to_parquet(temporary, index=False)
-    temporary.replace(output_parquet)
+    install_immutable_file(temporary, output_parquet)
     provenance.sort(key=lambda record: (record["dataset_id"], record["repeat"]))
     payload = {
         "schema_version": 1,
@@ -184,6 +207,10 @@ def aggregate_runs(
         "profile_id": profile_id,
         "profile": profile,
         "profile_evidence": profile_evidence,
+        "comparator_contract": comparator_contract,
+        "authorization": authorization,
+        "candidate": candidate,
+        "resource_reservation": resource_reservation,
         "repeats": expected_repeats,
         "repeat_indices": list(range(1, expected_repeats + 1)),
         "random_state": 1,
@@ -208,7 +235,7 @@ def aggregate_runs(
         },
         "environment": environment,
     }
-    atomic_json(output_summary, payload)
+    immutable_json(output_summary, payload)
     return payload
 
 

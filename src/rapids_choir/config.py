@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from collections.abc import Mapping
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from ._enums import InputPolicy, Multiplicity, RuleSet
-from .exceptions import InvalidConfigurationError
+from .exceptions import InvalidConfigurationError, MissingCalibrationError
 
 
 def _positive_int(name: str, value: int) -> None:
@@ -90,35 +91,45 @@ class RFProfile:
         }
 
 
-def default_rf_profile() -> RFProfile:
-    """Load a locally frozen winner when present, otherwise use the seed profile.
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
-    Calibration writes ``validation/evidence/rf_profile.json``. Source checkouts
-    therefore adopt the winner without importing GPU modules or mutating package
-    code. Installed packages can point at the same evidence with
-    ``RAPIDS_CHOIR_RF_PROFILE``.
-    """
 
+def _frozen_profile_path() -> Path:
     configured = os.environ.get("RAPIDS_CHOIR_RF_PROFILE")
-    path = (
-        Path(configured).expanduser()
-        if configured
-        else Path(__file__).resolve().parents[2]
-        / "validation"
-        / "evidence"
-        / "rf_profile.json"
-    )
+    if configured:
+        return Path(configured).expanduser()
+    return Path(__file__).resolve().parent / "_data" / "rf_profile.json"
+
+
+def _load_frozen_rf_profile(path: Path) -> tuple[RFProfile, str]:
     if not path.is_file():
-        return RFProfile()
+        raise MissingCalibrationError(
+            "no frozen RF profile is installed; pass an explicit RFProfile for "
+            "development only, or install a calibrated release"
+        )
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if payload.get("status") != "FROZEN":
+            raise ValueError("profile status is not FROZEN")
         winner = payload["winner"]
         profile = winner.get("profile", winner)
-        return RFProfile.from_mapping(profile)
+        return RFProfile.from_mapping(profile), _sha256(path)
     except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as error:
         raise InvalidConfigurationError(
             f"invalid frozen RF profile at {path}: {error}"
         ) from error
+
+
+def default_rf_profile() -> RFProfile:
+    """Load the shipped frozen winner; never fall back to a seed profile."""
+
+    profile, _ = _load_frozen_rf_profile(_frozen_profile_path())
+    return profile
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,7 +149,11 @@ class ComparisonConfig:
     device: str = "cuda:0"
     vram_headroom: float = 0.20
     random_state: int = 1
-    rf_profile: RFProfile = field(default_factory=default_rf_profile)
+    rf_profile: RFProfile | None = None
+    rf_profile_manifest: str | None = None
+    rf_profile_source: str = field(init=False)
+    rf_profile_evidence_eligible: bool = field(init=False)
+    rf_profile_manifest_sha256: str | None = field(init=False)
 
     def __post_init__(self) -> None:
         try:
@@ -148,6 +163,28 @@ class ComparisonConfig:
             raise InvalidConfigurationError(str(error)) from error
         object.__setattr__(self, "rules", rules)
         object.__setattr__(self, "input_policy", input_policy)
+
+        profile = self.rf_profile
+        manifest_hash: str | None = None
+        if profile is None:
+            profile_path = _frozen_profile_path()
+            profile, manifest_hash = _load_frozen_rf_profile(profile_path)
+            source = "frozen"
+            object.__setattr__(self, "rf_profile_manifest", str(profile_path))
+        elif self.rf_profile_manifest is not None:
+            profile_path = Path(self.rf_profile_manifest).expanduser()
+            frozen, manifest_hash = _load_frozen_rf_profile(profile_path)
+            if profile != frozen:
+                raise InvalidConfigurationError(
+                    "explicit RF profile does not match its frozen manifest"
+                )
+            source = "frozen"
+        else:
+            source = "explicit_development"
+        object.__setattr__(self, "rf_profile", profile)
+        object.__setattr__(self, "rf_profile_source", source)
+        object.__setattr__(self, "rf_profile_evidence_eligible", source == "frozen")
+        object.__setattr__(self, "rf_profile_manifest_sha256", manifest_hash)
 
         _positive_int("n_iterations", self.n_iterations)
         _positive_int("n_trees", self.n_trees)
@@ -193,6 +230,14 @@ class ComparisonConfig:
     @property
     def forest_fits(self) -> int:
         return 4 * self.split_rounds
+
+    @property
+    def resolved_rf_profile(self) -> RFProfile:
+        """Return the post-validation profile with a non-optional type."""
+
+        if self.rf_profile is None:  # pragma: no cover - guarded in __post_init__
+            raise MissingCalibrationError("RF profile resolution did not complete")
+        return self.rf_profile
 
 
 @dataclass(frozen=True, slots=True)

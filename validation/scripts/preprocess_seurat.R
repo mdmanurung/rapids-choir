@@ -21,8 +21,12 @@ truth_contract_path <- option_value("--truth-contract")
 dataset_id <- option_value("--dataset-id")
 expected_cells <- as.integer(option_value("--expected-cells"))
 expected_groups <- as.integer(option_value("--expected-groups"))
+if (file.exists(output)) {
+  stop("Immutable H5AD output already exists: ", output)
+}
 
 truth_contract <- fromJSON(truth_contract_path, simplifyVector = TRUE)
+truth_contract_raw <- fromJSON(truth_contract_path, simplifyVector = FALSE)
 if (!identical(truth_contract$status, "PASS")) {
   stop("Truth-label contract is not PASS")
 }
@@ -43,8 +47,11 @@ if (
   stop("Count matrix requires unique, non-empty feature and cell identifiers")
 }
 count_values <- if (inherits(counts, "sparseMatrix")) counts@x else as.vector(counts)
-if (!is.numeric(count_values) || any(!is.finite(count_values)) || any(count_values < 0)) {
-  stop("Counts must be finite, numeric, and non-negative")
+if (
+  !is.numeric(count_values) || any(!is.finite(count_values)) ||
+    any(count_values < 0) || any(count_values != floor(count_values))
+) {
+  stop("Counts must be finite, non-negative integers")
 }
 metadata <- read.csv(
   metadata_input,
@@ -75,6 +82,22 @@ if (!truth_column %in% colnames(metadata)) {
 truth <- as.character(metadata[[truth_column]])
 if (anyNA(truth) || length(unique(truth)) != expected_groups) {
   stop("Truth-label cardinality contract failed for ", dataset_id)
+}
+dataset_contract <- truth_contract_raw$datasets[[dataset_id]]
+if (is.null(dataset_contract)) {
+  stop("Dataset is absent from truth-label contract: ", dataset_id)
+}
+if (
+  !identical(
+    digest::digest(counts_input, algo = "sha256", file = TRUE, serialize = FALSE),
+    dataset_contract$counts_sha256
+  ) ||
+    !identical(
+      digest::digest(metadata_input, algo = "sha256", file = TRUE, serialize = FALSE),
+      dataset_contract$metadata_sha256
+    )
+) {
+  stop("Preprocessing inputs differ from the truth-label contract")
 }
 
 object <- CreateSeuratObject(
@@ -157,6 +180,12 @@ adata <- AnnData(
   obsp = list(choir_nn = nn_graph),
   uns = list(
     dataset_id = dataset_id,
+    candidate_commit = truth_contract_raw$candidate$commit,
+    candidate_attempt = truth_contract_raw$candidate$attempt,
+    runtime_tree_sha256 = truth_contract_raw$candidate$runtime_tree_sha256,
+    truth_contract_sha256 = digest::digest(
+      truth_contract_path, algo = "sha256", file = TRUE, serialize = FALSE
+    ),
     truth_source_column = truth_column,
     cell_id_source_column = cell_id_column,
     preprocessing_contract = "LogNormalize:10000|vst:2000|PCA:50|NN:15"

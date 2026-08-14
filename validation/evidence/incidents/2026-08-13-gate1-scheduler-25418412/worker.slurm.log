@@ -1,0 +1,45 @@
+host: res-hpc-gpu12.researchlumc.nl
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided remote nodes: 1
+Select jobs to execute...
+Execute 1 jobs...
+
+[Thu Aug 13 21:33:45 2026]
+rule gate1_gpu:
+    input: validation/evidence/gate1_static.json, validation/fixtures/comparator_synthetic.json, validation/scripts/run_gate1_gpu.py, src/rapids_choir/__init__.py, src/rapids_choir/__main__.py, src/rapids_choir/_calibration.py, src/rapids_choir/_comparator.py, src/rapids_choir/_cuda.py, src/rapids_choir/_decision.py, src/rapids_choir/_doctor.py, src/rapids_choir/_enums.py, src/rapids_choir/_memory.py, src/rapids_choir/_sampling.py, src/rapids_choir/_seeding.py, src/rapids_choir/_stats.py, src/rapids_choir/cli.py, src/rapids_choir/config.py, src/rapids_choir/exceptions.py, src/rapids_choir/get/__init__.py, src/rapids_choir/get/_records.py, src/rapids_choir/results.py, src/rapids_choir/tl/__init__.py, src/rapids_choir/tl/_compare.py, tests/gpu/test_comparator.py, tests/gpu/test_doctor.py, tests/gpu/test_sampling.py, tests/gpu/test_statistics.py, tests/unit/test_calibration.py, tests/unit/test_compare_adapter.py, tests/unit/test_config.py, tests/unit/test_decision_rules.py, tests/unit/test_gpu_run_aggregation.py, tests/unit/test_holdout_seal.py, tests/unit/test_import_safety.py, tests/unit/test_memory.py, tests/unit/test_pair_manifest.py, tests/unit/test_sampling_contract.py, tests/unit/test_seeding.py, validation/scripts/aggregate_gpu_comparisons.py, validation/scripts/assemble_gate2.py, validation/scripts/build_pair_manifest.py, validation/scripts/check_gate0.py, validation/scripts/check_profile_seal.py, validation/scripts/discover_truth_label.R, validation/scripts/download_zenodo.py, validation/scripts/extract_datasets.py, validation/scripts/freeze_rf_profile.py, validation/scripts/gate2_common.py, validation/scripts/generate_comparator_fixture.R, validation/scripts/generate_logic_fixtures.R, validation/scripts/inventory_dataset_archive.py, validation/scripts/preprocess_seurat.R, validation/scripts/run_gate1_gpu.py, validation/scripts/run_gate1_static.py, validation/scripts/run_gpu_comparisons.py, validation/scripts/run_reference_comparator.R, validation/scripts/verify_dataset_archive.py, validation/scripts/verify_h5ad_contract.py, validation/scripts/write_manifest.py, workflow/envs/rapids-cu128-linux-64.lock, workflow/envs/rapids-cu128-pip.lock
+    output: validation/evidence/gate1_gpu.json
+    log: validation/logs/gate1_gpu.log
+    jobid: 0
+    reason: Forced execution
+    threads: 4
+    resources: mem_mb=32000, mem_mib=30518, disk_mb=1000, disk_mib=954, tmpdir=<TBD>, runtime=30, slurm_partition=gpu-short, gres=gpu:L40S:1
+Shell command: CONDA_PREFIX=/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128 /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python validation/scripts/run_gate1_gpu.py --root . --output validation/evidence/gate1_gpu.json --log validation/logs/gate1_gpu.log
+srun: fatal: SLURM_TRES_PER_TASK is mutually exclusive with --ntasks-per-gpu and SLURM_NTASKS_PER_GPU
+[Thu Aug 13 21:33:46 2026]
+Error in rule gate1_gpu:
+    message: None
+    jobid: 0
+    input: validation/evidence/gate1_static.json, validation/fixtures/comparator_synthetic.json, validation/scripts/run_gate1_gpu.py, src/rapids_choir/__init__.py, src/rapids_choir/__main__.py, src/rapids_choir/_calibration.py, src/rapids_choir/_comparator.py, src/rapids_choir/_cuda.py, src/rapids_choir/_decision.py, src/rapids_choir/_doctor.py, src/rapids_choir/_enums.py, src/rapids_choir/_memory.py, src/rapids_choir/_sampling.py, src/rapids_choir/_seeding.py, src/rapids_choir/_stats.py, src/rapids_choir/cli.py, src/rapids_choir/config.py, src/rapids_choir/exceptions.py, src/rapids_choir/get/__init__.py, src/rapids_choir/get/_records.py, src/rapids_choir/results.py, src/rapids_choir/tl/__init__.py, src/rapids_choir/tl/_compare.py, tests/gpu/test_comparator.py, tests/gpu/test_doctor.py, tests/gpu/test_sampling.py, tests/gpu/test_statistics.py, tests/unit/test_calibration.py, tests/unit/test_compare_adapter.py, tests/unit/test_config.py, tests/unit/test_decision_rules.py, tests/unit/test_gpu_run_aggregation.py, tests/unit/test_holdout_seal.py, tests/unit/test_import_safety.py, tests/unit/test_memory.py, tests/unit/test_pair_manifest.py, tests/unit/test_sampling_contract.py, tests/unit/test_seeding.py, validation/scripts/aggregate_gpu_comparisons.py, validation/scripts/assemble_gate2.py, validation/scripts/build_pair_manifest.py, validation/scripts/check_gate0.py, validation/scripts/check_profile_seal.py, validation/scripts/discover_truth_label.R, validation/scripts/download_zenodo.py, validation/scripts/extract_datasets.py, validation/scripts/freeze_rf_profile.py, validation/scripts/gate2_common.py, validation/scripts/generate_comparator_fixture.R, validation/scripts/generate_logic_fixtures.R, validation/scripts/inventory_dataset_archive.py, validation/scripts/preprocess_seurat.R, validation/scripts/run_gate1_gpu.py, validation/scripts/run_gate1_static.py, validation/scripts/run_gpu_comparisons.py, validation/scripts/run_reference_comparator.R, validation/scripts/verify_dataset_archive.py, validation/scripts/verify_h5ad_contract.py, validation/scripts/write_manifest.py, workflow/envs/rapids-cu128-linux-64.lock, workflow/envs/rapids-cu128-pip.lock
+    output: validation/evidence/gate1_gpu.json
+    log: validation/logs/gate1_gpu.log (check log file(s) for error details)
+    shell:
+        CONDA_PREFIX=/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128 /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python validation/scripts/run_gate1_gpu.py --root . --output validation/evidence/gate1_gpu.json --log validation/logs/gate1_gpu.log
+        (command exited with non-zero exit code)
+Removing output files of failed job gate1_gpu since they might be corrupted:
+validation/evidence/gate1_gpu.json
+Shutting down, this might take some time.
+Exiting because a job execution failed. Look below for error messages
+[Thu Aug 13 21:33:46 2026]
+Error in rule gate1_gpu:
+    message: None
+    jobid: 0
+    input: validation/evidence/gate1_static.json, validation/fixtures/comparator_synthetic.json, validation/scripts/run_gate1_gpu.py, src/rapids_choir/__init__.py, src/rapids_choir/__main__.py, src/rapids_choir/_calibration.py, src/rapids_choir/_comparator.py, src/rapids_choir/_cuda.py, src/rapids_choir/_decision.py, src/rapids_choir/_doctor.py, src/rapids_choir/_enums.py, src/rapids_choir/_memory.py, src/rapids_choir/_sampling.py, src/rapids_choir/_seeding.py, src/rapids_choir/_stats.py, src/rapids_choir/cli.py, src/rapids_choir/config.py, src/rapids_choir/exceptions.py, src/rapids_choir/get/__init__.py, src/rapids_choir/get/_records.py, src/rapids_choir/results.py, src/rapids_choir/tl/__init__.py, src/rapids_choir/tl/_compare.py, tests/gpu/test_comparator.py, tests/gpu/test_doctor.py, tests/gpu/test_sampling.py, tests/gpu/test_statistics.py, tests/unit/test_calibration.py, tests/unit/test_compare_adapter.py, tests/unit/test_config.py, tests/unit/test_decision_rules.py, tests/unit/test_gpu_run_aggregation.py, tests/unit/test_holdout_seal.py, tests/unit/test_import_safety.py, tests/unit/test_memory.py, tests/unit/test_pair_manifest.py, tests/unit/test_sampling_contract.py, tests/unit/test_seeding.py, validation/scripts/aggregate_gpu_comparisons.py, validation/scripts/assemble_gate2.py, validation/scripts/build_pair_manifest.py, validation/scripts/check_gate0.py, validation/scripts/check_profile_seal.py, validation/scripts/discover_truth_label.R, validation/scripts/download_zenodo.py, validation/scripts/extract_datasets.py, validation/scripts/freeze_rf_profile.py, validation/scripts/gate2_common.py, validation/scripts/generate_comparator_fixture.R, validation/scripts/generate_logic_fixtures.R, validation/scripts/inventory_dataset_archive.py, validation/scripts/preprocess_seurat.R, validation/scripts/run_gate1_gpu.py, validation/scripts/run_gate1_static.py, validation/scripts/run_gpu_comparisons.py, validation/scripts/run_reference_comparator.R, validation/scripts/verify_dataset_archive.py, validation/scripts/verify_h5ad_contract.py, validation/scripts/write_manifest.py, workflow/envs/rapids-cu128-linux-64.lock, workflow/envs/rapids-cu128-pip.lock
+    output: validation/evidence/gate1_gpu.json
+    log: validation/logs/gate1_gpu.log (check log file(s) for error details)
+    shell:
+        CONDA_PREFIX=/exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128 /exports/para-lipg-hpc/mdmanurung/rapids-choir/.envs/rapids-choir-cu128/bin/python validation/scripts/run_gate1_gpu.py --root . --output validation/evidence/gate1_gpu.json --log validation/logs/gate1_gpu.log
+        (command exited with non-zero exit code)
+Storing output in storage.
+WorkflowError:
+At least one job did not complete successfully.

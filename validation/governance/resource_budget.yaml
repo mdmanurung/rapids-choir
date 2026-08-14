@@ -1,0 +1,24 @@
+schema_version: 1
+program: rapids-choir-v0.1
+limits:
+  l40s_hours: 250.0
+  scratch_bytes: 2000000000000
+  cloud_spend_usd: 0.0
+
+frozen_reservations:
+  gate1_gpu:
+    l40s_hours: 1.5
+    scratch_bytes: 20000000000
+  comparator_development:
+    l40s_hours: 120.0
+    scratch_bytes: 500000000000
+  comparator_confirm:
+    l40s_hours: 12.5
+    scratch_bytes: 250000000000
+
+policy:
+  evidence_reduction_allowed: false
+  cpu_substitution_allowed: false
+  cloud_spend_allowed: false
+  unreconciled_reservations_count_at_full_amount: true
+  reconciliation_source: completed_slurm_sacct

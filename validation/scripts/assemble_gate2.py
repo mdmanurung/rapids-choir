@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Aggregate sealed holdout repeats and evaluate every Gate 2 threshold."""
+"""Evaluate sealed comparator confirmation against the frozen v2 contract."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,13 +15,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import yaml
-from gate2_common import atomic_json, file_hash
+from gate2_common import file_hash, immutable_json, install_immutable_file
 
-from rapids_choir._calibration import (
-    comparator_acceptance_checks,
-    majority_decision,
-    wilson_lower_bound,
-)
+from rapids_choir._calibration import wilson_lower_bound
 
 
 def revision(root: Path) -> str:
@@ -33,45 +30,168 @@ def revision(root: Path) -> str:
     ).stdout.strip()
 
 
-def aggregate_pairs(frame: pd.DataFrame) -> pd.DataFrame:
+def _single_string(group: pd.DataFrame, column: str, identity: str) -> str:
+    values = set(group[column].astype(str))
+    if len(values) != 1:
+        raise RuntimeError(f"{column} drift across repeats for {identity}")
+    return next(iter(values))
+
+
+def _numeric_values(group: pd.DataFrame, column: str) -> list[float | None]:
+    values: list[float | None] = []
+    for value in group[column]:
+        if pd.isna(value):
+            values.append(None)
+            continue
+        numeric = float(value)
+        if not np.isfinite(numeric):
+            raise RuntimeError(f"nonfinite bounded metric in {column}")
+        values.append(numeric)
+    return values
+
+
+def aggregate_pairs(
+    frame: pd.DataFrame,
+    bounded_metric_margins: dict[str, float],
+) -> pd.DataFrame:
+    """Require every repeat to meet exact and bounded-record fidelity."""
+
+    required = {
+        "dataset_id",
+        "pair_id",
+        "repeat",
+        "pair_kind",
+        "expected_decision",
+        "reference_pair_kind",
+        "reference_expected_decision",
+        "reference_decision",
+        "reference_reason",
+        "gpu_decision",
+        "gpu_reference_reason",
+    }
+    for field in bounded_metric_margins:
+        required.update((f"reference_{field}", f"gpu_{field}"))
+    missing = sorted(required - set(frame.columns))
+    if missing:
+        raise RuntimeError(f"holdout results lack required v2 fields: {missing}")
+
     records: list[dict[str, Any]] = []
     for (dataset_id, pair_id), group in frame.groupby(
         ["dataset_id", "pair_id"], sort=True
     ):
-        if sorted(group["repeat"].tolist()) != [1, 2, 3, 4, 5]:
-            raise RuntimeError(f"incomplete holdout repeats for {dataset_id}/{pair_id}")
-        reference_decisions = set(group["reference_decision"])
-        reference_accuracies = set(group["reference_mean_observed_accuracy"])
-        if len(reference_decisions) != 1 or len(reference_accuracies) != 1:
-            raise RuntimeError(
-                f"reference drift across repeats for {dataset_id}/{pair_id}"
-            )
-        gpu_accuracy = float(median(group["gpu_mean_observed_accuracy"]))
-        reference_accuracy = float(next(iter(reference_accuracies)))
-        reference_decision = str(next(iter(reference_decisions)))
-        gpu_decision = majority_decision(group["gpu_decision"].tolist())
-        records.append(
-            {
-                "dataset_id": dataset_id,
-                "pair_id": pair_id,
-                "pair_kind": group["pair_kind"].iloc[0],
-                "reference_decision": reference_decision,
-                "gpu_majority_decision": gpu_decision,
-                "decision_concordant": gpu_decision == reference_decision,
-                "reference_mean_observed_accuracy": reference_accuracy,
-                "gpu_median_observed_accuracy": gpu_accuracy,
-                "abs_observed_accuracy_difference": abs(
-                    gpu_accuracy - reference_accuracy
-                ),
-            }
+        identity = f"{dataset_id}/{pair_id}"
+        if sorted(group["repeat"].astype(int).tolist()) != [1, 2, 3, 4, 5]:
+            raise RuntimeError(f"incomplete holdout repeats for {identity}")
+
+        pair_kind = _single_string(group, "pair_kind", identity)
+        expected_decision = _single_string(group, "expected_decision", identity)
+        reference_pair_kind = _single_string(
+            group, "reference_pair_kind", identity
         )
+        reference_expected_decision = _single_string(
+            group, "reference_expected_decision", identity
+        )
+        reference_decision = _single_string(
+            group, "reference_decision", identity
+        )
+        reference_reason = _single_string(group, "reference_reason", identity)
+        metadata_exact = (
+            pair_kind == reference_pair_kind
+            and expected_decision == reference_expected_decision
+        )
+        outcome_exact_by_repeat = (
+            group["gpu_decision"].astype(str).eq(reference_decision)
+            & group["gpu_reference_reason"].astype(str).eq(reference_reason)
+        )
+        outcome_exact = bool(outcome_exact_by_repeat.all())
+        record: dict[str, Any] = {
+            "dataset_id": str(dataset_id),
+            "pair_id": str(pair_id),
+            "pair_kind": pair_kind,
+            "expected_decision": expected_decision,
+            "reference_decision": reference_decision,
+            "reference_reason": reference_reason,
+            "metadata_exact": metadata_exact,
+            "outcome_exact_all_repeats": outcome_exact,
+            "outcome_exact_repeat_count": int(outcome_exact_by_repeat.sum()),
+        }
+
+        bounded_checks: list[bool] = []
+        for field, margin in bounded_metric_margins.items():
+            reference_values = _numeric_values(group, f"reference_{field}")
+            if len(set(reference_values)) != 1:
+                raise RuntimeError(
+                    f"reference {field} drift across repeats for {identity}"
+                )
+            reference_value = reference_values[0]
+            gpu_values = _numeric_values(group, f"gpu_{field}")
+            presence_exact = all(
+                (value is None) == (reference_value is None)
+                for value in gpu_values
+            )
+            if reference_value is None:
+                within_margin = presence_exact
+                maximum_difference = None
+                gpu_median = None
+            elif not presence_exact:
+                within_margin = False
+                maximum_difference = None
+                gpu_median = None
+            else:
+                numeric_gpu = [value for value in gpu_values if value is not None]
+                differences = [
+                    abs(value - reference_value) for value in numeric_gpu
+                ]
+                maximum_difference = max(differences)
+                gpu_median = float(median(numeric_gpu))
+                within_margin = maximum_difference <= margin
+            bounded_checks.append(within_margin)
+            record.update(
+                {
+                    f"reference_{field}": reference_value,
+                    f"gpu_median_{field}": gpu_median,
+                    f"max_abs_difference_{field}": maximum_difference,
+                    f"margin_{field}": margin,
+                    f"presence_exact_{field}": presence_exact,
+                    f"within_margin_{field}": within_margin,
+                }
+            )
+        record["all_bounded_metrics_within_margin"] = all(bounded_checks)
+        record["pair_pass"] = bool(
+            metadata_exact and outcome_exact and all(bounded_checks)
+        )
+        records.append(record)
+    if not records:
+        raise RuntimeError("holdout results contain no comparator pairs")
     return pd.DataFrame.from_records(records)
+
+
+def _load_margins(
+    contract: dict[str, Any], payload: dict[str, Any]
+) -> dict[str, float]:
+    if payload.get("status") != "FROZEN" or not payload.get("eligible"):
+        raise RuntimeError("development reference variability is not eligible")
+    fields = list(contract["reference_variability"]["bounded_fields"])
+    records = payload.get("bounded_metric_margins", {})
+    if set(records) != set(fields):
+        raise RuntimeError("development margin field set drift")
+    maximum = float(contract["holdout"]["maximum_margin"])
+    margins: dict[str, float] = {}
+    for field in fields:
+        record = records[field]
+        margin = float(record["margin"])
+        if not record.get("eligible") or not 0 <= margin <= maximum:
+            raise RuntimeError(f"ineligible development margin for {field}")
+        margins[field] = margin
+    return margins
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--dataset-spec", required=True, type=Path)
+    parser.add_argument("--comparator-contract", required=True, type=Path)
+    parser.add_argument("--authorization-seal", required=True, type=Path)
     parser.add_argument("--profile", required=True, type=Path)
     parser.add_argument("--profile-seal", required=True, type=Path)
     parser.add_argument("--run-summary", required=True, type=Path)
@@ -81,90 +201,184 @@ def main() -> None:
     args = parser.parse_args()
 
     spec = yaml.safe_load(args.dataset_spec.read_text(encoding="utf-8"))
-    thresholds = spec["acceptance"]["comparator"]
+    operational_thresholds = spec["acceptance"]["comparator"]
+    contract = yaml.safe_load(
+        args.comparator_contract.read_text(encoding="utf-8")
+    )
     profile = json.loads(args.profile.read_text(encoding="utf-8"))
     seal = json.loads(args.profile_seal.read_text(encoding="utf-8"))
+    authorization = json.loads(
+        args.authorization_seal.read_text(encoding="utf-8")
+    )
     summary = json.loads(args.run_summary.read_text(encoding="utf-8"))
+    current_commit = revision(args.root)
+
     if profile.get("status") != "FROZEN" or seal.get("status") != "PASS":
-        raise RuntimeError("holdout evidence is not protected by a frozen profile seal")
+        raise RuntimeError("holdout evidence lacks a frozen profile seal")
+    if seal.get("checked_at_head") != current_commit:
+        raise RuntimeError("profile seal was not checked at current HEAD")
+    if authorization.get("status") != "AUTHORIZED" or authorization.get(
+        "target"
+    ) != "comparator_confirm":
+        raise RuntimeError("comparator confirmation is not authorized")
+    if authorization.get("candidate_commit") != current_commit:
+        raise RuntimeError("authorization candidate does not match HEAD")
+    contract_hash = file_hash(args.comparator_contract)
+    if profile.get("comparator_contract", {}).get("sha256") != contract_hash:
+        raise RuntimeError("profile and comparator contract checksums differ")
+    margin_payload = profile.get("reference_variability", {})
+    if margin_payload.get("contract_sha256") != contract_hash:
+        raise RuntimeError("profile margins and comparator contract checksums differ")
+    calibration_runtime = profile.get("calibration_candidate", {}).get(
+        "runtime_tree_sha256"
+    )
+    if not calibration_runtime:
+        raise RuntimeError("profile lacks its calibration runtime identity")
+    if authorization.get("runtime_tree_sha256") != calibration_runtime:
+        raise RuntimeError(
+            "authorized confirmation runtime differs from calibration runtime"
+        )
+    if seal.get("candidate", {}).get(
+        "runtime_tree_sha256"
+    ) != calibration_runtime:
+        raise RuntimeError("profile seal runtime differs from calibration runtime")
     profile_hash = file_hash(args.profile)
-    if seal["profile_sha256"] != profile_hash:
-        raise RuntimeError("sealed profile checksum does not match holdout run")
+    if seal.get("profile_sha256") != profile_hash:
+        raise RuntimeError("sealed profile checksum does not match profile")
     if summary.get("profile_evidence", {}).get("sha256") != profile_hash:
         raise RuntimeError("holdout GPU run did not use the sealed profile")
-    if file_hash(args.run_parquet) != summary["results_parquet_sha256"]:
+    if summary.get("comparator_contract", {}).get("sha256") != contract_hash:
+        raise RuntimeError("holdout GPU run used a different comparator contract")
+    if summary.get("authorization", {}).get("sha256") != file_hash(
+        args.authorization_seal
+    ):
+        raise RuntimeError("holdout GPU run used a different authorization seal")
+    if summary.get("source_commit") != current_commit:
+        raise RuntimeError("holdout GPU run does not match HEAD")
+    if summary.get("candidate", {}).get(
+        "runtime_tree_sha256"
+    ) != calibration_runtime:
+        raise RuntimeError("holdout GPU runtime differs from calibration runtime")
+    if summary.get("candidate", {}).get("attempt") != authorization.get(
+        "attempt"
+    ):
+        raise RuntimeError("holdout GPU attempt differs from authorization")
+    if summary.get("resource_reservation", {}).get(
+        "reservation_id"
+    ) is None:
+        raise RuntimeError("holdout GPU run lacks a resource reservation")
+    if file_hash(args.run_parquet) != summary.get("results_parquet_sha256"):
         raise RuntimeError("holdout result Parquet checksum mismatch")
-    if "L40S" not in summary["device"]["name"]:
-        raise RuntimeError("Gate 2 acceptance must be measured on a typed L40S")
+    if "L40S" not in summary.get("device", {}).get("name", ""):
+        raise RuntimeError("Gate 2 acceptance requires a typed L40S")
 
+    margins = _load_margins(contract, margin_payload)
     raw = pd.read_parquet(args.run_parquet)
-    aggregated = aggregate_pairs(raw)
+    aggregated = aggregate_pairs(raw, margins)
+    expected_datasets = set(contract["roles"]["sealed_holdout"])
+    observed_datasets = set(aggregated["dataset_id"].astype(str))
+    if observed_datasets != expected_datasets:
+        raise RuntimeError(
+            "holdout dataset set drift: "
+            f"missing={sorted(expected_datasets - observed_datasets)}, "
+            f"extra={sorted(observed_datasets - expected_datasets)}"
+        )
+
     pair_count = len(aggregated)
-    successes = int(aggregated["decision_concordant"].sum())
-    overall = successes / pair_count
-    per_dataset = {
-        str(dataset_id): float(group["decision_concordant"].mean())
-        for dataset_id, group in aggregated.groupby("dataset_id", sort=True)
-    }
-    differences = aggregated["abs_observed_accuracy_difference"].to_numpy(
-        dtype=float
-    )
-    median_difference = float(np.median(differences))
-    p95_difference = float(np.quantile(differences, 0.95, method="linear"))
-    maximum_transfer = int(
-        raw["unapproved_post_ingest_transfer_bytes"].max()
-    )
+    exact_successes = int(aggregated["outcome_exact_all_repeats"].sum())
+    pair_successes = int(aggregated["pair_pass"].sum())
+    per_dataset: dict[str, dict[str, Any]] = {}
+    for dataset_id, group in aggregated.groupby("dataset_id", sort=True):
+        per_dataset[str(dataset_id)] = {
+            "pair_count": len(group),
+            "outcome_exact_fraction": float(
+                group["outcome_exact_all_repeats"].mean()
+            ),
+            "bounded_metric_pass_fraction": float(
+                group["all_bounded_metrics_within_margin"].mean()
+            ),
+            "passed": bool(group["pair_pass"].all()),
+        }
+
+    maximum_transfer = int(raw["unapproved_post_ingest_transfer_bytes"].max())
     free = raw["free_bytes_at_preflight"].to_numpy(dtype=float)
     estimated = raw["estimated_device_bytes"].to_numpy(dtype=float)
     if np.any(free <= 0):
         raise RuntimeError("invalid free-memory evidence")
     minimum_headroom = float(np.min((free - estimated) / free))
-    wilson = wilson_lower_bound(successes, pair_count)
-    checks = comparator_acceptance_checks(
-        overall_concordance=overall,
-        per_dataset_concordance=per_dataset,
-        wilson_lower_95=wilson,
-        median_accuracy_difference=median_difference,
-        p95_accuracy_difference=p95_difference,
-        maximum_unapproved_post_ingest_transfer_bytes=maximum_transfer,
-        minimum_vram_headroom=minimum_headroom,
-        thresholds=thresholds,
-    )
-    checks["typed_l40s"] = "L40S" in summary["device"]["name"]
-    checks["five_repeats_per_pair"] = bool(
-        (raw.groupby(["dataset_id", "pair_id"]).size() == 5).all()
-    )
+    checks = {
+        "deterministic_fields_exact_every_repeat": bool(
+            aggregated["metadata_exact"].all()
+            and aggregated["outcome_exact_all_repeats"].all()
+        ),
+        "bounded_metrics_within_development_margins_every_repeat": bool(
+            aggregated["all_bounded_metrics_within_margin"].all()
+        ),
+        "each_holdout_dataset_passes": all(
+            record["passed"] for record in per_dataset.values()
+        ),
+        "typed_l40s": "L40S" in summary["device"]["name"],
+        "five_repeats_per_pair": bool(
+            (raw.groupby(["dataset_id", "pair_id"]).size() == 5).all()
+        ),
+        "unapproved_transfer_within_limit": maximum_transfer
+        <= int(operational_thresholds["unapproved_post_ingest_transfer_bytes_max"]),
+        "vram_headroom_within_limit": minimum_headroom
+        >= float(operational_thresholds["vram_headroom_min"]),
+    }
     status = "PASS" if all(checks.values()) else "FAIL"
 
     args.aggregate_parquet.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.aggregate_parquet.with_suffix(
-        args.aggregate_parquet.suffix + ".tmp"
+        args.aggregate_parquet.suffix + f".tmp.{os.getpid()}"
     )
     aggregated.to_parquet(temporary, index=False)
-    temporary.replace(args.aggregate_parquet)
+    install_immutable_file(temporary, args.aggregate_parquet)
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "gate": 2,
-        "scope": "sealed_holdout_comparator_acceptance",
+        "scope": "sealed_holdout_comparator_component_fidelity",
         "status": status,
         "generated_at": datetime.now(UTC).isoformat(),
-        "source_commit": revision(args.root),
+        "source_commit": current_commit,
+        "authorization": {
+            "sha256": file_hash(args.authorization_seal),
+            "attempt": authorization["attempt"],
+            "operator": authorization["operator"],
+        },
+        "resource_reservation": summary["resource_reservation"],
         "rf_profile": {
             "sha256": profile_hash,
             "profile_commit": seal["profile_commit"],
             "winner": profile["winner"],
         },
+        "comparator_contract": {
+            "sha256": contract_hash,
+            "contract_id": contract["contract_id"],
+        },
+        "development_margins": {
+            "source_sha256": margin_payload["sha256"],
+            "source_candidate_commit": margin_payload["candidate_commit"],
+            "bounded_metrics": margins,
+        },
         "holdout_pair_count": pair_count,
         "metrics": {
-            "overall_decision_concordance": overall,
-            "per_dataset_decision_concordance": per_dataset,
-            "overall_wilson_lower_95": wilson,
-            "median_abs_observed_accuracy_difference": median_difference,
-            "p95_abs_observed_accuracy_difference": p95_difference,
+            "exact_outcome_pairs": exact_successes,
+            "fully_passing_pairs": pair_successes,
+            "exact_outcome_fraction": exact_successes / pair_count,
+            "exact_outcome_wilson_lower_95_informational": wilson_lower_bound(
+                exact_successes, pair_count
+            ),
+            "per_dataset": per_dataset,
             "maximum_unapproved_post_ingest_transfer_bytes": maximum_transfer,
             "minimum_vram_headroom": minimum_headroom,
         },
-        "thresholds": thresholds,
+        "operational_thresholds": {
+            "unapproved_post_ingest_transfer_bytes_max": operational_thresholds[
+                "unapproved_post_ingest_transfer_bytes_max"
+            ],
+            "vram_headroom_min": operational_thresholds["vram_headroom_min"],
+        },
         "checks": checks,
         "failure_reasons": sorted(
             name for name, passed in checks.items() if not passed
@@ -184,12 +398,12 @@ def main() -> None:
         "device": summary["device"],
         "environment": summary["environment"],
         "promotion": (
-            "Gate 3 planning permitted; hierarchy implementation not started."
+            "Comparator component confirmed; hierarchy development may begin."
             if status == "PASS"
-            else "Gate 2 stopped; no retuning or Gate 3 work is permitted."
+            else "Candidate stopped; no retuning or hierarchy work is permitted."
         ),
     }
-    atomic_json(args.output, payload)
+    immutable_json(args.output, payload)
 
 
 if __name__ == "__main__":

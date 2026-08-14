@@ -12,6 +12,12 @@ htmlcov/
 __pycache__/
 .coverage
 
+# Local human authorization material. Public keys may be copied into an
+# allowed_signers file, but authorization manifests/signatures stay local.
+workflow/authorization/*.json
+workflow/authorization/*.sig
+workflow/authorization/allowed_signers
+
 # Generated logs are local; checksum-bearing evidence remains tracked.
 validation/logs/
 # Preserved failure diagnostics; the passing evidence is what gets committed.

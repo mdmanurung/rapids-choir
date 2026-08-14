@@ -17,11 +17,36 @@ h5ad_path <- option_value("--h5ad")
 pair_path <- option_value("--pairs")
 dataset_id <- option_value("--dataset-id")
 reference_source <- option_value("--reference-source")
+seed <- as.integer(option_value("--seed"))
 output <- option_value("--output")
+if (is.na(seed) || seed < 1L) {
+  stop("--seed must be a positive integer")
+}
+if (file.exists(output)) {
+  stop("Immutable R comparator evidence already exists: ", output)
+}
 
 source(reference_source, local = globalenv())
 adata <- read_h5ad(h5ad_path)
 pair_manifest <- fromJSON(pair_path, simplifyVector = FALSE)
+if (
+  !identical(pair_manifest$status, "FROZEN") ||
+    !identical(pair_manifest$dataset_id, dataset_id)
+) {
+  stop("Pair manifest identity is not frozen for ", dataset_id)
+}
+h5ad_sha256 <- digest::digest(
+  h5ad_path, algo = "sha256", file = TRUE, serialize = FALSE
+)
+pair_sha256 <- digest::digest(
+  pair_path, algo = "sha256", file = TRUE, serialize = FALSE
+)
+if (!identical(pair_manifest$h5ad_sha256, h5ad_sha256)) {
+  stop("Pair manifest H5AD checksum mismatch for ", dataset_id)
+}
+if (!identical(as.character(adata$uns$dataset_id), dataset_id)) {
+  stop("H5AD dataset identity mismatch for ", dataset_id)
+}
 
 features <- which(as.logical(adata$var$highly_variable))
 input_matrix <- adata$X[, features, drop = FALSE]
@@ -44,7 +69,7 @@ record_columns <- c(
   "connectivity", "time", "decision"
 )
 
-set.seed(1L)
+set.seed(seed)
 results <- vector("list", length(pair_manifest$pairs))
 for (index in seq_along(pair_manifest$pairs)) {
   pair <- pair_manifest$pairs[[index]]
@@ -73,7 +98,7 @@ for (index in seq_along(pair_manifest$pairs)) {
     feature_importance_records = NULL,
     comparison_start_time = NULL,
     n_cores = 1L,
-    random_seed = 1L
+    random_seed = seed
   )
   record <- comparison$comparison_records[1L, , drop = FALSE]
   results[[index]] <- list(
@@ -96,14 +121,11 @@ payload <- list(
   schema_version = 1L,
   status = "PASS",
   dataset_id = dataset_id,
-  seed = 1L,
+  candidate = pair_manifest$candidate,
+  seed = seed,
   n_cores = 1L,
-  h5ad_sha256 = digest::digest(
-    h5ad_path, algo = "sha256", file = TRUE, serialize = FALSE
-  ),
-  pair_manifest_sha256 = digest::digest(
-    pair_path, algo = "sha256", file = TRUE, serialize = FALSE
-  ),
+  h5ad_sha256 = h5ad_sha256,
+  pair_manifest_sha256 = pair_sha256,
   reference_source = normalizePath(reference_source, mustWork = TRUE),
   reference_source_sha256 = digest::digest(
     reference_source, algo = "sha256", file = TRUE, serialize = FALSE
@@ -117,7 +139,7 @@ payload <- list(
   results = results
 )
 dir.create(dirname(output), recursive = TRUE, showWarnings = FALSE)
-temporary <- paste0(output, ".tmp")
+temporary <- paste0(output, ".tmp.", Sys.getpid())
 write_json(
   payload,
   temporary,

@@ -1,0 +1,73 @@
+schema_version: 2
+contract_id: comparator-candidate-v2
+supersedes:
+  - D010
+historical_contract:
+  path: validation/fixtures/specs/datasets.yaml
+  preservation: immutable
+
+roles:
+  development:
+    - Simulated Dataset 1
+    - Simulated Dataset 26
+    - Simulated Dataset 51
+    - Simulated Dataset 76
+  sealed_holdout:
+    - Simulated Dataset 5
+    - Simulated Dataset 30
+    - Simulated Dataset 55
+    - Simulated Dataset 80
+    - Simulated Dataset 111
+
+reference_variability:
+  seed_pairs:
+    - [104729, 104759]
+    - [130363, 130367]
+    - [155921, 155927]
+    - [181081, 181087]
+    - [206369, 206377]
+    - [231701, 231709]
+    - [257053, 257069]
+    - [282407, 282409]
+    - [307759, 307771]
+    - [333119, 333121]
+  deterministic_fields:
+    - decision
+    - reason
+    - pair_kind
+    - expected_decision
+  bounded_fields:
+    - mean_observed_accuracy
+    - variance_observed_accuracy
+    - mean_null_accuracy
+    - variance_null_accuracy
+    - accuracy_reference_tail_probability
+    - variance_reference_tail_probability
+  quantile: 0.975
+  maximum_margin: 0.03
+  ineligible_if_reference_variability_exceeds_maximum: true
+
+profile_grid:
+  n_bins: [128, 256, 512]
+  max_depth: [16, null]
+  n_streams: [1, 4]
+  gpu_repeats: 5
+  ranking_repeat_evaluation: every_repeat
+  ranking:
+    - macro_decision_reason_concordance_desc
+    - median_accuracy_distribution_error_asc
+    - median_runtime_seconds_asc
+    - n_bins_asc
+    - max_depth_16_before_unlimited
+    - n_streams_asc
+
+holdout:
+  deterministic_fields_require_exact_agreement: true
+  repeat_evaluation: every_repeat_must_pass
+  bounded_metric_margins_source: development_reference_variability
+  maximum_margin: 0.03
+  operational_safeguards_preserved_from_historical_contract:
+    - unapproved_post_ingest_transfer_bytes_max
+    - vram_headroom_min
+  open_once: true
+  failure_consequence: stop_candidate

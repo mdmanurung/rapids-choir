@@ -6,13 +6,23 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import tarfile
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from check_profile_seal import verify_profile_seal
-from gate2_common import atomic_json, dataset_number, dataset_slug
+from gate2_common import (
+    dataset_number,
+    dataset_slug,
+    file_hash,
+    git_output,
+    immutable_json,
+    install_immutable_file,
+    validate_candidate_manifest,
+)
 
 ARCHIVE_FILES = {
     "counts": ("RNA_matrix_raw.rds", ".rds"),
@@ -100,6 +110,27 @@ def validate_holdout_seal(root: Path, seal_path: Path) -> dict[str, str | int]:
     return current
 
 
+def validate_authorization_seal(
+    root: Path,
+    seal_path: Path,
+    *,
+    profile_sha256: str,
+) -> dict[str, Any]:
+    supplied = json.loads(seal_path.read_text(encoding="utf-8"))
+    if supplied.get("status") != "AUTHORIZED":
+        raise RuntimeError("holdout authorization seal is not AUTHORIZED")
+    if supplied.get("target") != "comparator_confirm":
+        raise RuntimeError("holdout authorization target is not comparator_confirm")
+    if supplied.get("candidate_commit") != git_output(root, "rev-parse", "HEAD"):
+        raise RuntimeError("holdout authorization candidate is stale")
+    if supplied.get("rf_profile_sha256") != profile_sha256:
+        raise RuntimeError("holdout authorization RF profile checksum differs")
+    expires = datetime.fromisoformat(str(supplied["expires_at"]))
+    if expires.astimezone(UTC) <= datetime.now(UTC):
+        raise RuntimeError("holdout authorization has expired")
+    return supplied
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive", required=True, type=Path)
@@ -110,31 +141,79 @@ def main() -> None:
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--profile-seal", type=Path)
+    parser.add_argument("--authorization-seal", type=Path)
+    parser.add_argument("--candidate-manifest", required=True, type=Path)
     parser.add_argument("--root", default=Path("."), type=Path)
     args = parser.parse_args()
 
+    root = args.root.resolve()
+    candidate = validate_candidate_manifest(root, args.candidate_manifest)
     archive_path = args.archive.resolve()
     verification = json.loads(args.verification.read_text(encoding="utf-8"))
     if verification.get("status") != "PASS":
         raise RuntimeError("archive has not passed frozen MD5 verification")
     if Path(verification.get("archive", "")).resolve() != archive_path:
         raise RuntimeError("archive path does not match verification evidence")
-    if args.mode == "holdout" and (
-        args.profile_seal is None or not args.profile_seal.is_file()
+    verification_candidate = verification.get("candidate", {})
+    if (
+        verification_candidate.get("commit") != candidate["candidate_commit"]
+        or verification_candidate.get("attempt") != candidate["candidate_attempt"]
+        or verification_candidate.get("runtime_tree_sha256")
+        != candidate["runtime_tree_sha256"]
     ):
-        raise RuntimeError("holdout extraction requires committed RF profile seal")
+        raise RuntimeError("archive verification candidate identity mismatch")
+    if args.mode == "holdout" and (
+        args.profile_seal is None
+        or not args.profile_seal.is_file()
+        or args.authorization_seal is None
+        or not args.authorization_seal.is_file()
+    ):
+        raise RuntimeError(
+            "holdout extraction requires profile and authorization seals"
+        )
+    if args.mode == "development" and (
+        args.profile_seal is not None or args.authorization_seal is not None
+    ):
+        raise RuntimeError("development extraction cannot consume holdout seals")
     seal = (
-        validate_holdout_seal(args.root, args.profile_seal)
+        validate_holdout_seal(root, args.profile_seal)
         if args.mode == "holdout" and args.profile_seal is not None
         else None
     )
+    authorization = (
+        validate_authorization_seal(
+            args.root.resolve(),
+            args.authorization_seal,
+            profile_sha256=str(seal["profile_sha256"]),
+        )
+        if args.mode == "holdout"
+        and args.authorization_seal is not None
+        and seal is not None
+        else None
+    )
     inventory = json.loads(args.inventory.read_text(encoding="utf-8"))
+    if inventory.get("status") != "PASS":
+        raise RuntimeError("archive inventory evidence is not PASS")
     if Path(inventory.get("archive", "")).resolve() != archive_path:
         raise RuntimeError("inventory archive path does not match selected archive")
     if inventory.get("archive_md5") != verification.get("md5"):
         raise RuntimeError("inventory MD5 does not match verification evidence")
+    if inventory.get("verification_sha256") != file_hash(args.verification):
+        raise RuntimeError("inventory verification checksum does not match")
+    if inventory.get("candidate") != verification_candidate:
+        raise RuntimeError("inventory candidate identity does not match")
     args.output_root.mkdir(parents=True, exist_ok=True)
     selected = select_members(inventory, args.dataset, args.output_root)
+    existing = sorted(
+        str(Path(selection["output"]))
+        for selection in selected.values()
+        if Path(selection["output"]).exists()
+    )
+    if args.manifest.exists() or existing:
+        raise RuntimeError(
+            "immutable extraction outputs already exist: "
+            f"manifest={args.manifest.exists()}, files={existing}"
+        )
     records = {
         dataset_id: {"dataset_id": dataset_id, "files": {}}
         for dataset_id in args.dataset
@@ -158,7 +237,7 @@ def main() -> None:
             if source is None:
                 raise RuntimeError(f"could not read selected member: {member_name}")
             output = Path(selection["output"])
-            temporary = Path(f"{output}.tmp")
+            temporary = Path(f"{output}.tmp.{os.getpid()}")
             digest = hashlib.sha256()
             size = 0
             with source, temporary.open("wb") as handle:
@@ -171,7 +250,7 @@ def main() -> None:
                     size += len(chunk)
             if size != member.size:
                 raise RuntimeError(f"extracted size mismatch for {member_name}")
-            temporary.replace(output)
+            install_immutable_file(temporary, output)
             dataset_id = str(selection["dataset_id"])
             kind = str(selection["kind"])
             records[dataset_id]["files"][kind] = {
@@ -188,17 +267,33 @@ def main() -> None:
             "selected members were not found while streaming: "
             f"{sorted(remaining)}"
         )
-    atomic_json(
+    immutable_json(
         args.manifest,
         {
             "schema_version": 2,
             "mode": args.mode,
+            "status": "FROZEN",
+            "candidate": verification_candidate,
+            "candidate_manifest_sha256": file_hash(args.candidate_manifest),
             "archive_md5": inventory["archive_md5"],
             "profile_seal": (
                 str(args.profile_seal.resolve()) if args.profile_seal else None
             ),
             "profile_sha256": seal.get("profile_sha256") if seal else None,
             "profile_commit": seal.get("profile_commit") if seal else None,
+            "authorization_seal": (
+                str(args.authorization_seal.resolve())
+                if args.authorization_seal
+                else None
+            ),
+            "authorization_sha256": (
+                file_hash(args.authorization_seal)
+                if args.authorization_seal
+                else None
+            ),
+            "authorization_id": (
+                authorization.get("authorization_id") if authorization else None
+            ),
             "datasets": sorted(
                 records.values(),
                 key=lambda record: dataset_number(str(record["dataset_id"])),

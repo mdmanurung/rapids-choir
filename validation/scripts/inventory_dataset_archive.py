@@ -8,7 +8,7 @@ import json
 import tarfile
 from pathlib import Path
 
-from gate2_common import atomic_json, file_hash
+from gate2_common import file_hash, immutable_json
 
 
 def main() -> None:
@@ -39,12 +39,15 @@ def main() -> None:
                     "type": "file" if member.isfile() else "other",
                 }
             )
-    atomic_json(
+    immutable_json(
         args.output,
         {
             "schema_version": 1,
+            "status": "PASS",
             "archive": str(archive_path),
             "archive_md5": archive_md5,
+            "verification_sha256": file_hash(args.verification),
+            "candidate": verification.get("candidate"),
             "member_count": len(members),
             "members": members,
         },

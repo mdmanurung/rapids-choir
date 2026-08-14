@@ -52,3 +52,7 @@ class InsufficientDeviceMemoryError(RapidsChoirError, MemoryError):
 
 class RecordsUnavailableError(RapidsChoirError, LookupError):
     """Full comparison records cannot be resolved from the supplied object."""
+
+
+class MissingCalibrationError(RapidsChoirError, RuntimeError):
+    """No valid frozen RF calibration profile is available."""

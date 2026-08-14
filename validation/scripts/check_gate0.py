@@ -6,8 +6,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
+
+from gate2_common import (
+    cli_path_argument,
+    file_hash,
+    immutable_json,
+    preserve_failure_record,
+    validate_candidate_manifest,
+)
 
 EXPECTED_FIXTURES = {
     "batch_eligibility.json",
@@ -104,6 +113,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--fixtures", required=True, type=Path)
+    parser.add_argument("--candidate-manifest", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
 
@@ -112,6 +122,7 @@ def main() -> None:
     source_file_count = verify_source_snapshot(root)
     fixture_file_count = verify_fixture_manifest(root, fixture_dir)
     versions = verify_r_lock(root, fixture_dir)
+    candidate = validate_candidate_manifest(root, args.candidate_manifest)
 
     assertions = read_json(fixture_dir / "source_assertions.json")
     failed = sorted(name for name, passed in assertions.items() if not passed)
@@ -136,6 +147,13 @@ def main() -> None:
         "schema_version": 1,
         "gate": 0,
         "status": "PASS",
+        "candidate": {
+            "commit": candidate["candidate_commit"],
+            "attempt": candidate["candidate_attempt"],
+            "runtime_tree_sha256": candidate["runtime_tree_sha256"],
+            "manifest_sha256": file_hash(args.candidate_manifest),
+            "dirty_state": candidate["dirty_state"],
+        },
         "reference_commit": "0db5e90ef46cd4f2f3765aa812325c8c768563fa",
         "source_files_verified": source_file_count,
         "fixture_files_verified": fixture_file_count,
@@ -148,11 +166,26 @@ def main() -> None:
             "Gate 0 is a design/reference gate and is not GPU functional evidence.",
         ],
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    temporary = args.output.with_suffix(args.output.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    temporary.replace(args.output)
+    immutable_json(args.output, payload)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        if (output := cli_path_argument("--output")) is not None:
+            try:
+                preserve_failure_record(
+                    output,
+                    scope="gate0",
+                    stage="design_reference_preflight",
+                    method_started=False,
+                    failure_classification="technical_or_custody_outcome",
+                    error=error,
+                )
+            except Exception as preservation_error:  # pragma: no cover
+                print(
+                    f"could not preserve Gate 0 failure: {preservation_error}",
+                    file=sys.stderr,
+                )
+        raise

@@ -8,7 +8,11 @@ import json
 import subprocess
 from pathlib import Path
 
-from gate2_common import atomic_json, file_hash
+from gate2_common import (
+    file_hash,
+    immutable_json,
+    validate_candidate_manifest,
+)
 
 
 def git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -48,9 +52,19 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--profile", required=True, type=Path)
+    parser.add_argument("--candidate-manifest", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    atomic_json(args.output, verify_profile_seal(args.root, args.profile))
+    root = args.root.resolve()
+    candidate = validate_candidate_manifest(root, args.candidate_manifest)
+    evidence = verify_profile_seal(root, args.profile)
+    evidence["candidate"] = {
+        "attempt": candidate["candidate_attempt"],
+        "runtime_tree_sha256": candidate["runtime_tree_sha256"],
+        "manifest_sha256": file_hash(args.candidate_manifest),
+        "dirty_state": candidate["dirty_state"],
+    }
+    immutable_json(args.output, evidence)
 
 
 if __name__ == "__main__":

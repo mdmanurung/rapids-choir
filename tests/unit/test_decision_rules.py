@@ -7,7 +7,7 @@ import pytest
 
 from rapids_choir._decision import decide_comparison
 from rapids_choir._enums import REFERENCE_REASON_ALIASES, Decision
-from rapids_choir.config import ComparisonConfig
+from rapids_choir.config import ComparisonConfig, RFProfile
 from rapids_choir.results import ComparisonMetrics
 
 ROOT = Path(__file__).parents[2]
@@ -35,7 +35,7 @@ def test_decision_order_matches_frozen_r_fixture() -> None:
     fixture = json.loads(
         (ROOT / "validation/fixtures/generated/decision_rules.json").read_text()
     )
-    config = ComparisonConfig(rules="choir_v0_3_0")
+    config = ComparisonConfig(rules="choir_v0_3_0", rf_profile=RFProfile())
     for case, inputs in fixture["inputs"].items():
         outcome = decide_comparison(
             _metrics(inputs), config, cluster1_size=20, cluster2_size=20
@@ -58,6 +58,9 @@ def test_tail_threshold_is_strict() -> None:
         }
     )
     outcome = decide_comparison(
-        metrics, ComparisonConfig(), cluster1_size=100, cluster2_size=100
+        metrics,
+        ComparisonConfig(rf_profile=RFProfile()),
+        cluster1_size=100,
+        cluster2_size=100,
     )
     assert outcome.decision is Decision.MERGE

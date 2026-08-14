@@ -16,7 +16,7 @@ cps = pytest.importorskip("cupyx.scipy.sparse")
 import rapids_choir._comparator as engine  # noqa: E402
 from rapids_choir._comparator import ChoirComparator  # noqa: E402
 from rapids_choir._enums import RuleSet  # noqa: E402
-from rapids_choir.config import ComparisonConfig  # noqa: E402
+from rapids_choir.config import ComparisonConfig, RFProfile  # noqa: E402
 from rapids_choir.exceptions import (  # noqa: E402
     GraphSemanticError,
     InsufficientDeviceMemoryError,
@@ -45,6 +45,7 @@ def fast_config(**overrides: object) -> ComparisonConfig:
         "max_repeat_errors": 0,
         "input_policy": "device_only",
         "random_state": 1,
+        "rf_profile": RFProfile(),
     }
     values.update(overrides)
     return ComparisonConfig(**values)
@@ -228,6 +229,7 @@ def test_host_ann_data_is_ingested_once_and_post_ingest_transfers_are_small() ->
         n_iterations=4,
         n_trees=5,
         max_repeat_errors=0,
+        rf_profile=RFProfile(),
     )
     ingests = [
         transfer
@@ -265,46 +267,17 @@ def test_vram_preflight_fails_without_adapting_workload(
 
 
 @pytest.mark.gpu
-def test_cache_collision_never_reuses_unverified_memberships(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    features = cp.ones((4, 2), dtype=cp.float32)
-    graph = cps.csr_matrix((4, 4), dtype=cp.float32)
-    comparator = ChoirComparator(fast_config())
-    monkeypatch.setattr(
-        engine, "device_membership_fingerprint", lambda _values: (2, 7, 11)
-    )
-    comparator.compare(
-        features,
-        cp.asarray([0, 1], dtype=cp.int64),
-        cp.asarray([2, 3], dtype=cp.int64),
-        graph,
-    )
-    comparator.compare(
-        features,
-        cp.asarray([0, 2], dtype=cp.int64),
-        cp.asarray([1, 3], dtype=cp.int64),
-        graph,
-    )
-    assert sum(len(entries) for entries in comparator._cache.values()) == 2
-
-
-@pytest.mark.gpu
-def test_verified_cache_hit_records_whole_call_timing() -> None:
+def test_repeated_comparison_is_fully_recomputed() -> None:
     features, graph, cluster1, cluster2, mask = separable_inputs()
     comparator = ChoirComparator(fast_config())
     comparator.compare(features, cluster1, cluster2, graph, feature_mask=mask)
-    cached = comparator.compare(
+    repeated = comparator.compare(
         features, cluster1, cluster2, graph, feature_mask=mask
     )
-    assert set(cached.timings.components_seconds) == {
-        "ingest",
-        "fingerprint",
-        "cache_lookup",
-    }
-    assert cached.timings.total_seconds >= cached.timings.components_seconds[
-        "cache_lookup"
-    ]
+    assert not hasattr(comparator, "_cache")
+    assert "cache_lookup" not in repeated.timings.components_seconds
+    assert repeated.timings.components_seconds["observed_fits"] > 0
+    assert repeated.timings.components_seconds["null_fits"] > 0
 
 
 @pytest.mark.gpu
@@ -338,6 +311,7 @@ def test_synthetic_ranger_and_cuml_fixture_agree() -> None:
         n_trees=fixture["n_trees"],
         max_repeat_errors=0,
         random_state=fixture["seed"],
+        rf_profile=RFProfile(),
     )
     for reference in fixture["results"]:
         result = ChoirComparator(config).compare(

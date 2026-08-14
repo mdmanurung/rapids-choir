@@ -7,7 +7,7 @@ import argparse
 from datetime import UTC, datetime
 from pathlib import Path
 
-from gate2_common import atomic_json, file_hash
+from gate2_common import file_hash, immutable_json, validate_candidate_manifest
 
 
 def main() -> None:
@@ -16,7 +16,12 @@ def main() -> None:
     parser.add_argument("--expected-bytes", required=True, type=int)
     parser.add_argument("--expected-md5", required=True)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--root", required=True, type=Path)
+    parser.add_argument("--candidate-manifest", required=True, type=Path)
     args = parser.parse_args()
+    candidate = validate_candidate_manifest(
+        args.root.resolve(), args.candidate_manifest
+    )
 
     archive = args.archive.resolve()
     size = archive.stat().st_size
@@ -29,7 +34,7 @@ def main() -> None:
         raise RuntimeError(
             f"archive MD5 mismatch: expected={args.expected_md5}, got={actual_md5}"
         )
-    atomic_json(
+    immutable_json(
         args.output,
         {
             "schema_version": 1,
@@ -38,6 +43,13 @@ def main() -> None:
             "archive": str(archive),
             "bytes": size,
             "md5": actual_md5,
+            "candidate": {
+                "commit": candidate["candidate_commit"],
+                "attempt": candidate["candidate_attempt"],
+                "runtime_tree_sha256": candidate["runtime_tree_sha256"],
+                "manifest_sha256": file_hash(args.candidate_manifest),
+                "dirty_state": candidate["dirty_state"],
+            },
         },
     )
 

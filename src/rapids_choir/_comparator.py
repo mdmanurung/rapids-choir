@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Any
 
@@ -16,11 +15,7 @@ from ._memory import (
     preflight_device_memory,
 )
 from ._sampling import balanced_sample_size, balanced_split_round, eligible_batch_codes
-from ._seeding import (
-    derive_seed,
-    device_membership_fingerprint,
-    device_memberships_equal,
-)
+from ._seeding import derive_seed, device_membership_fingerprint
 from ._stats import overall_accuracy, tail_probabilities
 from .config import ComparisonConfig, RFProfile
 from .exceptions import GraphSemanticError, InputResidencyError
@@ -33,13 +28,6 @@ from .results import (
     SeedRecord,
     TimingRecord,
 )
-
-
-@dataclass(slots=True)
-class _CacheEntry:
-    cluster1: Any
-    cluster2: Any
-    result: ComparisonResult
 
 
 def _module(name: str) -> Any:
@@ -145,38 +133,6 @@ def _as_device_vector(
     if vector.ndim != 1:
         raise ValueError(f"{name} must be one-dimensional")
     return vector, transferred
-
-
-def _profile_key(profile: RFProfile) -> tuple[Any, ...]:
-    return tuple(profile.to_record().items())
-
-
-def _fit_cache_key(config: ComparisonConfig) -> tuple[Any, ...]:
-    # Alpha, minimum accuracy, and variance use affect only the final decision.
-    return (
-        config.n_iterations,
-        config.n_trees,
-        config.min_connections,
-        config.max_repeat_errors,
-        config.sample_max,
-        config.downsampling_rate,
-        config.min_reads,
-        config.rules,
-        config.input_policy,
-        config.device,
-        config.vram_headroom,
-        config.random_state,
-        _profile_key(config.rf_profile),
-    )
-
-
-def _matrix_identity(value: Any) -> tuple[Any, ...]:
-    return (
-        id(value),
-        tuple(value.shape),
-        str(value.dtype),
-        int(getattr(value, "nnz", -1)),
-    )
 
 
 def _validate_memberships(cluster1: Any, cluster2: Any, n_rows: int) -> None:
@@ -430,47 +386,11 @@ def _short_result(
     )
 
 
-def _redecide_cached(
-    result: ComparisonResult,
-    config: ComparisonConfig,
-    *,
-    elapsed: float,
-    components: dict[str, float],
-    ledger: TransferLedger,
-) -> ComparisonResult:
-    if result.metrics is None:
-        outcome_decision = result.decision
-        outcome_reason = result.reason_code
-    else:
-        outcome = decide_comparison(
-            result.metrics,
-            config,
-            cluster1_size=result.samples.cluster1_cells,
-            cluster2_size=result.samples.cluster2_cells,
-        )
-        outcome_decision = outcome.decision
-        outcome_reason = outcome.reason_code
-    aliases = dict(result.compatibility_aliases)
-    aliases["decision"] = REFERENCE_REASON_ALIASES[outcome_reason]
-    return replace(
-        result,
-        decision=outcome_decision,
-        reason_code=outcome_reason,
-        timings=TimingRecord(
-            total_seconds=elapsed,
-            components_seconds=components,
-        ),
-        memory=replace(result.memory, transfers=ledger.freeze()),
-        compatibility_aliases=aliases,
-    )
-
-
 class ChoirComparator:
     """Representation-independent single-GPU comparator."""
 
     def __init__(self, config: ComparisonConfig | None = None) -> None:
         self.config = config if config is not None else ComparisonConfig()
-        self._cache: dict[tuple[Any, ...], list[_CacheEntry]] = {}
 
     def compare(
         self,
@@ -575,36 +495,6 @@ class ChoirComparator:
             purpose="membership fingerprints and validation scalars",
         )
 
-        cache_key = (
-            canonical_fingerprints,
-            _matrix_identity(features),
-            _matrix_identity(graph),
-            id(mask),
-            id(batches),
-            cluster1_id,
-            cluster2_id,
-            _fit_cache_key(config),
-        )
-        cache_started = perf_counter()
-        for entry in self._cache.get(cache_key, []):
-            same_first = device_memberships_equal(entry.cluster1, cluster1)
-            same_second = device_memberships_equal(entry.cluster2, cluster2)
-            if same_first and same_second:
-                components["cache_lookup"] = perf_counter() - cache_started
-                ledger.record(
-                    direction="device_to_host",
-                    bytes=2,
-                    purpose="full membership cache verification",
-                )
-                return _redecide_cached(
-                    entry.result,
-                    config,
-                    elapsed=perf_counter() - started,
-                    components=components,
-                    ledger=ledger,
-                )
-        components["cache_lookup"] = perf_counter() - cache_started
-
         free_initial, total_bytes = context.memory_info()
         available_features = int(features.shape[1])
         cluster1_size = int(cluster1.size)
@@ -638,9 +528,6 @@ class ChoirComparator:
                     ledger=ledger,
                     free_bytes=free_initial,
                     total_bytes=total_bytes,
-                )
-                self._cache.setdefault(cache_key, []).append(
-                    _CacheEntry(cluster1.copy(), cluster2.copy(), result)
                 )
                 return result
         components["connectivity"] = perf_counter() - connectivity_started
@@ -676,9 +563,6 @@ class ChoirComparator:
                     ledger=ledger,
                     free_bytes=free_initial,
                     total_bytes=total_bytes,
-                )
-                self._cache.setdefault(cache_key, []).append(
-                    _CacheEntry(cluster1.copy(), cluster2.copy(), result)
                 )
                 return result
         else:
@@ -720,9 +604,6 @@ class ChoirComparator:
                 free_bytes=free_initial,
                 total_bytes=total_bytes,
             )
-            self._cache.setdefault(cache_key, []).append(
-                _CacheEntry(cluster1.copy(), cluster2.copy(), result)
-            )
             return result
         components["feature_filter"] = perf_counter() - feature_started
 
@@ -733,7 +614,7 @@ class ChoirComparator:
             sampled_rows=4 * n_per_half,
             selected_features=selected_features,
             n_trees=config.n_trees,
-            max_depth=config.rf_profile.max_depth,
+            max_depth=config.resolved_rf_profile.max_depth,
             n_iterations=config.n_iterations,
         )
         free_preflight, total_bytes = context.memory_info()
@@ -805,7 +686,7 @@ class ChoirComparator:
                     sampled,
                     labels,
                     train_mask,
-                    profile=config.rf_profile,
+                    profile=config.resolved_rf_profile,
                     n_trees=config.n_trees,
                     seed=seed,
                 )
@@ -1014,8 +895,5 @@ class ChoirComparator:
                 transfers=ledger.freeze(),
             ),
             compatibility_aliases=aliases,
-        )
-        self._cache.setdefault(cache_key, []).append(
-            _CacheEntry(cluster1.copy(), cluster2.copy(), result)
         )
         return result

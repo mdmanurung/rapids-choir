@@ -59,10 +59,10 @@ are derived with BLAKE2b from root seed, operation kind, canonical membership,
 round, and fit role. Compatibility mode uses a distinct seed namespace and
 records unavoidable ranger/cuML algorithm differences.
 
-Raw comparison metrics are cached by hashes of membership, selected features,
-NN graph, batch labels, pinned RF profile, rules, and seed. Alpha and
-multiplicity are deliberately excluded so decisions can be recomputed without
-refitting.
+Comparator result caching is disabled for v0.1. Pointer identity cannot prove
+that mutable matrices, graphs, memberships, masks, or batches are unchanged.
+Any future cache must use complete content-derived identities covering those
+inputs plus seeds, mode, and the frozen RF profile.
 
 ## Records
 

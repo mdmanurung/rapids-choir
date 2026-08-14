@@ -14,12 +14,22 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from gate2_common import (
+    cli_path_argument,
+    file_hash,
+    immutable_json,
+    immutable_text,
+    preserve_failure_record,
+    validate_candidate_manifest,
+)
+
 EXPECTED_CONDA_PACKAGES = {
     "rapids": "26.06.01",
     "cuml": "26.06.00",
     "cugraph": "26.06.00",
     "rmm": "26.06.00",
 }
+RUN_STAGE = "preflight"
 
 
 def sha256(path: Path) -> str:
@@ -57,13 +67,16 @@ def conda_versions(prefix: Path) -> dict[str, str | None]:
 
 
 def main() -> None:
+    global RUN_STAGE
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--log", type=Path, required=True)
+    parser.add_argument("--candidate-manifest", type=Path, required=True)
     args = parser.parse_args()
 
     root = args.root.resolve()
+    candidate = validate_candidate_manifest(root, args.candidate_manifest)
     python = Path(sys.executable).resolve()
     prefix = python.parent.parent
     lock = root / "workflow/envs/rapids-cu128-linux-64.lock"
@@ -87,7 +100,14 @@ def main() -> None:
         raise RuntimeError(f"rapids-singlecell drift: {rsc_version}")
 
     commands = [
-        [str(python.parent / "ruff"), "check", "src", "tests", "validation/scripts"],
+        [
+            str(python.parent / "ruff"),
+            "check",
+            "src",
+            "tests",
+            "validation/scripts",
+            "workflow",
+        ],
         [str(python.parent / "mypy"), "src/rapids_choir"],
         [str(python), "-m", "pytest", "tests/unit", "-q"],
         [str(python), "-m", "build", "--no-isolation"],
@@ -101,6 +121,7 @@ def main() -> None:
             ),
         ],
     ]
+    RUN_STAGE = "static_checks"
     checks = [run(root, command) for command in commands]
     commands_failed = any(check["returncode"] != 0 for check in checks)
     cuda_imported = checks[-1]["stdout"].strip() != "[]"
@@ -127,6 +148,12 @@ def main() -> None:
         "functional_validation": False,
         "generated_at": datetime.now(UTC).isoformat(),
         "commit": revision["stdout"].strip() if revision["returncode"] == 0 else None,
+        "candidate": {
+            "attempt": candidate["candidate_attempt"],
+            "runtime_tree_sha256": candidate["runtime_tree_sha256"],
+            "manifest_sha256": file_hash(args.candidate_manifest),
+            "dirty_state": candidate["dirty_state"],
+        },
         "python": sys.version.split()[0],
         "python_executable": str(python),
         "conda_packages": versions,
@@ -142,21 +169,48 @@ def main() -> None:
             "It is not GPU functional or scientific acceptance evidence.",
         ],
     }
-    args.log.parent.mkdir(parents=True, exist_ok=True)
-    args.log.write_text(
+    immutable_text(
+        args.log,
         "\n\n".join(
             f"$ {' '.join(check['command'])}\n{check['stdout']}{check['stderr']}"
             for check in checks
         ),
-        encoding="utf-8",
     )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    temporary = args.output.with_suffix(args.output.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    temporary.replace(args.output)
+    immutable_json(args.output, payload)
     if status != "PASS":
+        preserve_failure_record(
+            args.output,
+            scope="gate1_static",
+            stage=RUN_STAGE,
+            method_started=True,
+            failure_classification="technical_outcome",
+            evidence=payload,
+        )
         raise SystemExit(1)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        if (output := cli_path_argument("--output")) is not None:
+            try:
+                preserve_failure_record(
+                    output,
+                    scope="gate1_static",
+                    stage=RUN_STAGE,
+                    method_started=RUN_STAGE == "static_checks",
+                    failure_classification=(
+                        "technical_outcome"
+                        if RUN_STAGE == "static_checks"
+                        else "custody_or_preflight_rejection"
+                    ),
+                    error=error,
+                )
+            except Exception as preservation_error:  # pragma: no cover
+                print(
+                    f"could not preserve Gate 1 static failure: "
+                    f"{preservation_error}",
+                    file=sys.stderr,
+                )
+        raise

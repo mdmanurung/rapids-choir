@@ -10,7 +10,12 @@ from typing import Any
 import anndata as ad
 import numpy as np
 import scipy.sparse as sp
-from gate2_common import atomic_json, file_hash, identifier_hash
+from gate2_common import (
+    file_hash,
+    identifier_hash,
+    immutable_json,
+    validate_candidate_manifest,
+)
 
 
 def nonzero_count(value: Any) -> int:
@@ -41,9 +46,14 @@ def main() -> None:
     parser.add_argument("--dataset-id", required=True)
     parser.add_argument("--expected-cells", required=True, type=int)
     parser.add_argument("--expected-groups", required=True, type=int)
+    parser.add_argument("--root", required=True, type=Path)
+    parser.add_argument("--candidate-manifest", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
 
+    candidate = validate_candidate_manifest(
+        args.root.resolve(), args.candidate_manifest
+    )
     adata = ad.read_h5ad(args.input)
     if adata.n_obs != args.expected_cells:
         raise RuntimeError("H5AD cell count does not match the frozen dataset contract")
@@ -73,12 +83,33 @@ def main() -> None:
         raise RuntimeError("choir_nn must be an aligned sparse graph")
     if adata.layers["counts"].shape != adata.shape:
         raise RuntimeError("counts layer must align to X")
+    counts = adata.layers["counts"]
+    count_values = counts.data if sp.issparse(counts) else np.asarray(counts)
+    if not np.isfinite(count_values).all() or np.any(count_values < 0):
+        raise RuntimeError("counts layer must be finite and non-negative")
+    if not np.equal(count_values, np.floor(count_values)).all():
+        raise RuntimeError("counts layer must contain integer-valued raw counts")
+    if str(adata.uns.get("candidate_commit")) != str(
+        candidate["candidate_commit"]
+    ):
+        raise RuntimeError("H5AD candidate commit does not match current candidate")
+    if str(adata.uns.get("runtime_tree_sha256")) != str(
+        candidate["runtime_tree_sha256"]
+    ):
+        raise RuntimeError("H5AD runtime digest does not match current candidate")
 
     obs_names = adata.obs_names.astype(str).tolist()
     var_names = adata.var_names.astype(str).tolist()
     payload = {
         "schema_version": 1,
         "status": "PASS",
+        "candidate": {
+            "commit": candidate["candidate_commit"],
+            "attempt": candidate["candidate_attempt"],
+            "runtime_tree_sha256": candidate["runtime_tree_sha256"],
+            "manifest_sha256": file_hash(args.candidate_manifest),
+            "dirty_state": candidate["dirty_state"],
+        },
         "dataset_id": args.dataset_id,
         "path": str(args.input.resolve()),
         "bytes": args.input.stat().st_size,
@@ -111,7 +142,7 @@ def main() -> None:
             "nearest_neighbors": 15,
         },
     }
-    atomic_json(args.output, payload)
+    immutable_json(args.output, payload)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,57 @@
+{
+  "attempt": 1,
+  "candidate_commit": "d5b11ba6c84e94efc37e996d88eda6ce34db52eb",
+  "classification": "infrastructure_pre_method",
+  "classified_at": "2026-08-14T11:01:35.000Z",
+  "evidence": [
+    {
+      "bytes": 3712,
+      "path": "driver.snakemake.log",
+      "sha256": "81b3936ffa84921ef7f6b89fac38d5ae6c7eead0a455b6a6323b7de687784591"
+    },
+    {
+      "bytes": 8896,
+      "path": "worker.slurm.log",
+      "sha256": "9b8ebb82f1dcba99bdb9f1865b9d4ced7f2d722a41bfbd8bffda3c0667796b48"
+    },
+    {
+      "bytes": 4952,
+      "path": "../../../../error.log",
+      "preservation": "retained_in_place_untracked_private",
+      "sha256": "39cbf61b176b58329a07cea954af53634752adc40684f39c20930309389a13d5"
+    },
+    {
+      "bytes": 6512,
+      "path": "../../../../logs_snakemake_rerun.txt",
+      "preservation": "retained_in_place_untracked_private",
+      "sha256": "481541416c35aecbbc3b9f4d6dad00ff64a2116abb44cd8c298bcce750e269c5"
+    },
+    {
+      "bytes": 6335,
+      "path": "../../gate1_gpu.FAILED.json",
+      "preservation": "retained_in_place_ignored_failure_evidence",
+      "sha256": "8f263e1d50911dfc0adca6c60952cdcdf11b5abbdfc3561f94968dae04b87411"
+    },
+    {
+      "bytes": 5134,
+      "evidence_status": "historical_only_not_current_candidate",
+      "path": "../../gate1_gpu.json",
+      "sha256": "6188eb57bde4514a83e1ab76316d71d458e41a2e5ef53b611dc37aac73733b07"
+    }
+  ],
+  "failure": {
+    "job_id": "25418412",
+    "method_started": false,
+    "reason": "nested Snakemake inherited incompatible Slurm GPU task variables",
+    "scheduler_error": "SLURM_TRES_PER_TASK is mutually exclusive with --ntasks-per-gpu and SLURM_NTASKS_PER_GPU"
+  },
+  "historical_pass_commit": "2a7ad87863c14b320d10636fc6e59c5f16b62beb",
+  "incident_id": "gate1-scheduler-25418412",
+  "schema_version": 1,
+  "status": "INVALIDATED_INFRASTRUCTURE",
+  "worktree": {
+    "dirty_at_recovery": true,
+    "origin_main_present": false,
+    "recovery_clone": "/tmp/rapids-choir-candidate-d5b11ba6"
+  }
+}

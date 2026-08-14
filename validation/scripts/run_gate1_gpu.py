@@ -15,6 +15,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from gate2_common import (
+    cli_path_argument,
+    file_hash,
+    immutable_json,
+    immutable_text,
+    preserve_failure_record,
+    validate_candidate_manifest,
+)
+from resource_ledger import validate_reservation
+
+RUN_STAGE = "preflight"
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -54,19 +66,32 @@ def conda_packages(prefix: Path) -> dict[str, dict[str, str]]:
 
 
 def main() -> None:
+    global RUN_STAGE
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--log", type=Path, required=True)
+    parser.add_argument("--candidate-manifest", type=Path, required=True)
+    parser.add_argument("--resource-reservation", type=Path, required=True)
+    parser.add_argument("--resource-ledger", type=Path, required=True)
     args = parser.parse_args()
 
     root = args.root.resolve()
+    candidate = validate_candidate_manifest(root, args.candidate_manifest)
+    reservation = validate_reservation(
+        ledger=args.resource_ledger,
+        reservation_path=args.resource_reservation,
+        phase="gate1_gpu",
+        candidate_commit=str(candidate["candidate_commit"]),
+        candidate_attempt=int(candidate["candidate_attempt"]),
+    )
     python = Path(sys.executable).resolve()
     prefix = python.parent.parent
     slurm_job_id = os.environ.get("SLURM_JOB_ID")
     if not slurm_job_id:
         raise RuntimeError("Gate 1 GPU evidence must run inside a Slurm allocation")
 
+    RUN_STAGE = "gpu_functional_checks"
     doctor = execute(
         root,
         [str(python), "-m", "rapids_choir", "doctor", "--strict", "--json"],
@@ -151,6 +176,14 @@ def main() -> None:
             failure_reasons.append(name)
     if failure_reasons:
         status = "FAIL"
+    failure_classification = None
+    if status == "FAIL":
+        infrastructure_conditions = {"nvidia_smi", "typed_l40s"}
+        failure_classification = (
+            "infrastructure_pre_method"
+            if infrastructure_conditions.intersection(failure_reasons)
+            else "technical_outcome"
+        )
 
     lock = root / "workflow/envs/rapids-cu128-linux-64.lock"
     pip_lock = root / "workflow/envs/rapids-cu128-pip.lock"
@@ -161,6 +194,16 @@ def main() -> None:
         "status": status,
         "generated_at": datetime.now(UTC).isoformat(),
         "commit": revision["stdout"].strip(),
+        "candidate": {
+            "attempt": candidate["candidate_attempt"],
+            "runtime_tree_sha256": candidate["runtime_tree_sha256"],
+            "manifest_sha256": file_hash(args.candidate_manifest),
+            "dirty_state": candidate["dirty_state"],
+        },
+        "resource_reservation": {
+            "reservation_id": reservation["reservation_id"],
+            "sha256": file_hash(args.resource_reservation),
+        },
         "slurm": {
             "job_id": slurm_job_id,
             "job_name": os.environ.get("SLURM_JOB_NAME"),
@@ -187,6 +230,7 @@ def main() -> None:
         },
         "conditions": conditions,
         "failure_reasons": failure_reasons,
+        "failure_classification": failure_classification,
         "doctor": doctor_payload,
         "gpu_tests": {
             "returncode": tests["returncode"],
@@ -195,28 +239,46 @@ def main() -> None:
             "stderr": tests["stderr"],
         },
     }
-    args.log.parent.mkdir(parents=True, exist_ok=True)
-    args.log.write_text(
+    immutable_text(
+        args.log,
         (
             f"DOCTOR\n{doctor['stdout']}{doctor['stderr']}\n"
             f"GPU TESTS\n{tests['stdout']}{tests['stderr']}\n"
             f"NVIDIA-SMI\n{nvidia_smi['stdout']}{nvidia_smi['stderr']}"
         ),
-        encoding="utf-8",
     )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    serialized = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    temporary = args.output.with_suffix(args.output.suffix + ".tmp")
-    temporary.write_text(serialized)
-    temporary.replace(args.output)
+    immutable_json(args.output, payload)
     if status != "PASS":
         # Snakemake deletes a failed job's declared outputs, which would destroy
         # the only record of why the gate failed. This sibling is not a rule
         # output, so it survives.
         preserved = args.output.with_name(args.output.stem + ".FAILED.json")
-        preserved.write_text(serialized)
+        immutable_json(preserved, payload)
         raise SystemExit(1)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        if (output := cli_path_argument("--output")) is not None:
+            try:
+                preserve_failure_record(
+                    output,
+                    scope="gate1_gpu",
+                    stage=RUN_STAGE,
+                    method_started=RUN_STAGE == "gpu_functional_checks",
+                    failure_classification=(
+                        "technical_outcome"
+                        if RUN_STAGE == "gpu_functional_checks"
+                        else "custody_or_infrastructure_preflight"
+                    ),
+                    error=error,
+                )
+            except Exception as preservation_error:  # pragma: no cover
+                print(
+                    f"could not preserve Gate 1 GPU failure: "
+                    f"{preservation_error}",
+                    file=sys.stderr,
+                )
+        raise

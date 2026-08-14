@@ -7,6 +7,8 @@ from math import sqrt
 from statistics import NormalDist
 from typing import Any
 
+import numpy as np
+
 
 def wilson_lower_bound(
     successes: int,
@@ -68,18 +70,94 @@ def macro_decision_concordance(
     return sum(class_scores) / len(class_scores)
 
 
+def macro_decision_reason_concordance(
+    reference_decisions: Sequence[str],
+    predicted_decisions: Sequence[str],
+    reference_reasons: Sequence[str],
+    predicted_reasons: Sequence[str],
+) -> float:
+    """Macro concordance across joint reference decision/reason strata."""
+
+    lengths = {
+        len(reference_decisions),
+        len(predicted_decisions),
+        len(reference_reasons),
+        len(predicted_reasons),
+    }
+    if len(lengths) != 1 or not reference_decisions:
+        raise ValueError("decision/reason records must align and be non-empty")
+    reference = list(zip(reference_decisions, reference_reasons, strict=True))
+    predicted = list(zip(predicted_decisions, predicted_reasons, strict=True))
+    strata = sorted(set(reference))
+    scores = []
+    for stratum in strata:
+        positions = [
+            index for index, value in enumerate(reference) if value == stratum
+        ]
+        scores.append(
+            sum(predicted[index] == stratum for index in positions) / len(positions)
+        )
+    return sum(scores) / len(scores)
+
+
+def accuracy_distribution_error(
+    reference: Sequence[float],
+    predicted: Sequence[float],
+) -> float:
+    """Mean absolute difference over a frozen 101-point quantile grid."""
+
+    left = np.asarray(reference, dtype=float)
+    right = np.asarray(predicted, dtype=float)
+    if left.size == 0 or right.size == 0:
+        raise ValueError("accuracy distributions must be non-empty")
+    if (
+        not np.isfinite(left).all()
+        or not np.isfinite(right).all()
+        or np.any((left < 0) | (left > 1))
+        or np.any((right < 0) | (right > 1))
+    ):
+        raise ValueError("accuracy distributions must be finite values in [0, 1]")
+    quantiles = np.linspace(0.0, 1.0, 101)
+    return float(
+        np.mean(
+            np.abs(
+                np.quantile(left, quantiles, method="linear")
+                - np.quantile(right, quantiles, method="linear")
+            )
+        )
+    )
+
+
+def bounded_metric_margin(
+    absolute_differences: Sequence[float],
+    *,
+    quantile: float = 0.975,
+    maximum: float = 0.03,
+) -> dict[str, float | bool]:
+    """Derive a capped margin and mark excess reference variability ineligible."""
+
+    values = np.asarray(absolute_differences, dtype=float)
+    if values.size == 0 or not np.isfinite(values).all() or np.any(values < 0):
+        raise ValueError("absolute differences must be finite, non-negative values")
+    if not 0 < quantile < 1 or maximum <= 0:
+        raise ValueError("quantile and maximum must be within their valid ranges")
+    raw = float(np.quantile(values, quantile, method="linear"))
+    return {
+        "raw_margin": raw,
+        "margin": min(raw, maximum),
+        "eligible": raw <= maximum,
+    }
+
+
 def profile_rank_key(summary: Mapping[str, Any]) -> tuple[Any, ...]:
     """Frozen lexicographic RF ranking key (smaller is better)."""
 
     profile = summary["profile"]
-    depth = profile["max_depth"]
-    depth_key = float("inf") if depth is None else int(depth)
+    depth_key = 0 if profile["max_depth"] == 16 else 1
     return (
-        -float(summary["macro_decision_concordance"]),
-        float(summary["median_abs_observed_accuracy_difference"]),
-        float(summary["p95_abs_observed_accuracy_difference"]),
+        -float(summary["macro_decision_reason_concordance"]),
+        float(summary["median_accuracy_distribution_error"]),
         float(summary["median_runtime_seconds"]),
-        int(summary["median_peak_device_bytes"]),
         int(profile["n_bins"]),
         depth_key,
         int(profile["n_streams"]),
@@ -89,9 +167,11 @@ def profile_rank_key(summary: Mapping[str, Any]) -> tuple[Any, ...]:
 def rank_profiles(summaries: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Sort all calibration profiles and attach one-based frozen ranks."""
 
-    ranked = [dict(summary) for summary in summaries]
+    ranked = [
+        dict(summary) for summary in summaries if bool(summary.get("eligible", True))
+    ]
     if not ranked:
-        raise ValueError("at least one RF profile summary is required")
+        raise ValueError("at least one eligible RF profile summary is required")
     ranked.sort(key=profile_rank_key)
     for index, summary in enumerate(ranked, start=1):
         summary["rank"] = index

@@ -13,7 +13,12 @@ from typing import Any
 import anndata as ad
 import numpy as np
 import scipy.sparse as sp
-from gate2_common import atomic_json, file_hash, identifier_hash
+from gate2_common import (
+    file_hash,
+    identifier_hash,
+    immutable_json,
+    validate_candidate_manifest,
+)
 
 
 def stable_halves(cells: list[str], seed: int) -> tuple[list[str], list[str]]:
@@ -58,12 +63,32 @@ def main() -> None:
     parser.add_argument("--data-manifest", required=True, type=Path)
     parser.add_argument("--dataset-id", required=True)
     parser.add_argument("--seed", required=True, type=int)
+    parser.add_argument("--root", required=True, type=Path)
+    parser.add_argument("--candidate-manifest", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
 
+    candidate = validate_candidate_manifest(
+        args.root.resolve(), args.candidate_manifest
+    )
     data_manifest = json.loads(args.data_manifest.read_text(encoding="utf-8"))
     if data_manifest.get("status") != "PASS":
         raise RuntimeError("H5AD contract evidence is not PASS")
+    h5ad_hash = file_hash(args.h5ad)
+    if (
+        data_manifest.get("dataset_id") != args.dataset_id
+        or Path(str(data_manifest.get("path"))).resolve() != args.h5ad.resolve()
+        or data_manifest.get("sha256") != h5ad_hash
+    ):
+        raise RuntimeError("H5AD contract identity or checksum mismatch")
+    manifest_candidate = data_manifest.get("candidate", {})
+    if (
+        manifest_candidate.get("commit") != candidate["candidate_commit"]
+        or manifest_candidate.get("attempt") != candidate["candidate_attempt"]
+        or manifest_candidate.get("runtime_tree_sha256")
+        != candidate["runtime_tree_sha256"]
+    ):
+        raise RuntimeError("H5AD contract candidate identity mismatch")
     adata = ad.read_h5ad(args.h5ad)
     labels = adata.obs["truth_label"].astype(str).to_numpy()
     cell_names = adata.obs_names.astype(str).to_numpy()
@@ -113,13 +138,15 @@ def main() -> None:
         for key in ("cluster1_cells", "cluster2_cells")
         for cell in pair[key]
     ]
-    atomic_json(
+    immutable_json(
         args.output,
         {
             "schema_version": 1,
+            "status": "FROZEN",
             "dataset_id": args.dataset_id,
+            "candidate": manifest_candidate,
             "h5ad_path": str(args.h5ad.resolve()),
-            "h5ad_sha256": file_hash(args.h5ad),
+            "h5ad_sha256": h5ad_hash,
             "data_manifest_sha256": file_hash(args.data_manifest),
             "truth_column": "truth_label",
             "ground_truth_groups": len(groups),
