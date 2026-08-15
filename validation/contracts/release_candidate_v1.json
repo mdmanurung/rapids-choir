@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "contract_id": "narrow-software-release-candidate-v1",
+  "parity_promotion_required": true,
+  "required_artifacts": [
+    "wheel",
+    "sdist",
+    "oci_image_manifest",
+    "apptainer_definition",
+    "documentation",
+    "smoke_data",
+    "sbom",
+    "release_manifest",
+    "checksums",
+    "rights_audit",
+    "credential_audit",
+    "restricted_data_audit",
+    "stale_evidence_audit"
+  ],
+  "clean_checkout_reproduction_required": true,
+  "source_version_must_be_final": true,
+  "external_actions": {
+    "tag": "separate_authorization_required",
+    "pypi": "separate_authorization_required",
+    "container_registry": "separate_authorization_required",
+    "zenodo": "separate_authorization_required",
+    "github_release": "separate_authorization_required",
+    "preprint": "separate_authorization_required",
+    "journal_submission": "separate_authorization_required"
+  }
+}

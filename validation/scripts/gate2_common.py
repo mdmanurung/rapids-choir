@@ -18,6 +18,7 @@ from uuid import uuid4
 RUNTIME_PATHS = (
     ".gitignore",
     "CITATION.cff",
+    "containers/",
     "LICENSE",
     "NOTICE",
     "README.md",
@@ -25,10 +26,17 @@ RUNTIME_PATHS = (
     "docs/architecture/",
     "docs/decisions/",
     "docs/validation/",
+    "figures/",
+    "manuscript/",
     "pyproject.toml",
     "renv.lock",
+    "release/",
+    "scripts/",
+    "smoke/",
     "src/",
     "tests/",
+    "tables/",
+    "supplement/",
     "validation/contracts/",
     "validation/fixtures/specs/",
     "validation/governance/",
@@ -56,7 +64,7 @@ def _is_runtime_path(path: str) -> bool:
 
 
 def runtime_tree_digest(root: Path) -> tuple[str, list[str]]:
-    """Hash names and bytes of every tracked runtime-controlled file."""
+    """Hash names and bytes of every tracked repository file."""
 
     untracked = git_output(
         root, "ls-files", "--others", "--exclude-standard"
@@ -70,7 +78,7 @@ def runtime_tree_digest(root: Path) -> tuple[str, list[str]]:
             f"{untracked_runtime}"
         )
     tracked = git_output(root, "ls-files").splitlines()
-    paths = sorted(path for path in tracked if _is_runtime_path(path))
+    paths = sorted(tracked)
     if not paths:
         raise RuntimeError("runtime-controlled tree is empty")
     digest = hashlib.sha256()

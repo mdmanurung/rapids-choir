@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "bounded_values": {
+      "additionalProperties": {"maximum": 1.0, "minimum": 0.0, "type": "number"},
+      "type": "object"
+    },
+    "decision": {"type": ["string", "null"]},
+    "event_type": {
+      "enum": [
+        "provenance",
+        "preprocessing",
+        "prepared_input_validation",
+        "resolution_search",
+        "resolution_transition",
+        "hierarchy_node",
+        "hierarchy_stop",
+        "comparator_call",
+        "multiplicity",
+        "prune",
+        "bridge",
+        "merge",
+        "singleton",
+        "final_relabel"
+      ]
+    },
+    "input_membership_hashes": {"items": {"$ref": "#/$defs/sha256"}, "type": "array"},
+    "operation_index": {"minimum": 0, "type": "integer"},
+    "output_membership_hashes": {"items": {"$ref": "#/$defs/sha256"}, "type": "array"},
+    "parameters": {"type": "object"},
+    "payload": {"type": "object"},
+    "phase": {"minLength": 1, "type": "string"},
+    "reason": {"type": ["string", "null"]},
+    "run_id": {"minLength": 1, "type": "string"},
+    "schema_version": {"const": "rapids_choir.semantic/v1"},
+    "seed": {"type": ["integer", "null"]},
+    "topology_context": {"type": "object"}
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "operation_index",
+    "event_type",
+    "phase",
+    "parameters",
+    "seed",
+    "input_membership_hashes",
+    "output_membership_hashes",
+    "topology_context",
+    "decision",
+    "reason",
+    "bounded_values",
+    "payload"
+  ],
+  "title": "rapids-choir semantic event v1",
+  "type": "object"
+}

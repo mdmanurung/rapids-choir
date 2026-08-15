@@ -195,6 +195,7 @@ def main() -> None:
         "generated_at": datetime.now(UTC).isoformat(),
         "commit": revision["stdout"].strip(),
         "candidate": {
+            "commit": candidate["candidate_commit"],
             "attempt": candidate["candidate_attempt"],
             "runtime_tree_sha256": candidate["runtime_tree_sha256"],
             "manifest_sha256": file_hash(args.candidate_manifest),

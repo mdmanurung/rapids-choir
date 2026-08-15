@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "contract_id": "tested-l40s-performance-v1",
+  "workloads": [
+    "workload_01",
+    "workload_02",
+    "workload_03",
+    "workload_04",
+    "workload_05",
+    "workload_06"
+  ],
+  "genes_per_workload": 10000,
+  "warmups_per_implementation": 1,
+  "measured_pairs_per_workload": 7,
+  "fresh_process_each_measurement": true,
+  "timing_boundary": "input_open_to_durable_output_fsync",
+  "pair_order": {
+    "method": "preregistered_seeded_permutation",
+    "seed": 104729,
+    "schedule": {
+      "workload_01": ["r_then_python", "python_then_r", "python_then_r", "r_then_python", "r_then_python", "python_then_r", "r_then_python"],
+      "workload_02": ["r_then_python", "r_then_python", "r_then_python", "python_then_r", "python_then_r", "python_then_r", "r_then_python"],
+      "workload_03": ["r_then_python", "r_then_python", "r_then_python", "python_then_r", "python_then_r", "r_then_python", "python_then_r"],
+      "workload_04": ["python_then_r", "r_then_python", "python_then_r", "python_then_r", "r_then_python", "r_then_python", "r_then_python"],
+      "workload_05": ["python_then_r", "python_then_r", "r_then_python", "r_then_python", "r_then_python", "python_then_r", "r_then_python"],
+      "workload_06": ["r_then_python", "r_then_python", "r_then_python", "python_then_r", "python_then_r", "r_then_python", "python_then_r"]
+    }
+  },
+  "speedup": "r_wall_seconds_divided_by_python_wall_seconds",
+  "interval": {
+    "scale": "log_speedup",
+    "center": "geometric_mean",
+    "method": "one_sample_t",
+    "one_sided_confidence": 0.95,
+    "degrees_of_freedom": 6,
+    "critical_value": 1.9431802805153022
+  },
+  "claim_policy": {
+    "all_outputs_correct": true,
+    "every_workload_lower_bound_minimum": 2.0,
+    "hardware_scope": "NVIDIA L40S only",
+    "cross_hardware_claim": false,
+    "causal_gpu_or_rapids_claim": false
+  },
+  "memory": {
+    "report_by_implementation": true,
+    "host": "absolute_peak_bytes",
+    "device": "absolute_peak_bytes"
+  },
+  "correctness": {
+    "per_pair_content_bound_report": true,
+    "all_checks_must_pass": true
+  }
+}

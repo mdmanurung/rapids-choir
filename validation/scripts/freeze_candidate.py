@@ -63,6 +63,7 @@ def freeze_candidate(
             "tracked": False,
             "untracked_files_excluded": True,
         },
+        "runtime_scope": "all_tracked_repository_files",
         "host": socket.gethostname(),
         "failure_classification": None,
     }

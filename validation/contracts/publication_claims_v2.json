@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "contract_id": "narrow-software-publication-v2",
+  "target": {
+    "venue": "BMC Bioinformatics",
+    "article_type": "Software Article",
+    "exclusive": true
+  },
+  "primary_claim": "A reproducible AnnData-native Python implementation of the unimodal-RNA CHOIR v0.3.0 algorithm that attains prespecified computational-parity contracts in compatibility mode.",
+  "publication_eligibility": {
+    "same_candidate_required": true,
+    "maximum_stochastic_margin": 0.03,
+    "hard_gates": [
+      "comparator computational parity",
+      "hierarchy computational parity",
+      "AnnData and public API contracts",
+      "GPU fail-closed behavior",
+      "immutable provenance",
+      "clean installation",
+      "reproducible release"
+    ],
+    "secondary_results_cannot_determine_eligibility": true
+  },
+  "secondary_claims": {
+    "corrected_case_studies": {
+      "status": "secondary",
+      "datasets": ["Stoeckius", "Kang", "pancreas"],
+      "unfavorable_valid_results_retained": true,
+      "pooled_biological_validity_claim": false
+    }
+  },
+  "optional_claims": {
+    "tested_l40s_performance": {
+      "eligible_only_if_all_workloads_correct": true,
+      "one_sided_95_percent_lower_bound_minimum": 2.0
+    },
+    "sant_reproduction_completeness": {
+      "failure_blocks_primary_claim": false
+    }
+  },
+  "prohibited_claims": [
+    "independent hierarchy validation",
+    "generic scientific validation",
+    "superiority",
+    "causal GPU or RAPIDS attribution",
+    "ranger and cuML identity",
+    "formal FDR control",
+    "cross-hardware performance"
+  ]
+}

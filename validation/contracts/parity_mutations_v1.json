@@ -1,0 +1,122 @@
+{
+  "schema_version": 2,
+  "strategy": "temporary_source_patch",
+  "required_categories": [
+    "tail_test",
+    "batch_and_multiplicity",
+    "seed_and_sampling",
+    "resolution_and_bridge",
+    "singleton_and_pruning",
+    "identity_and_staleness"
+  ],
+  "mutations": [
+    {
+      "mutation_id": "tail_test_inequality",
+      "category": "tail_test",
+      "target": "comparator decision",
+      "source": "src/rapids_choir/_decision.py",
+      "find": "value < threshold",
+      "replace": "value <= threshold",
+      "probe": "tests/unit/test_decision_rules.py::test_tail_threshold_is_strict"
+    },
+    {
+      "mutation_id": "decision_precedence",
+      "category": "tail_test",
+      "target": "comparator reason",
+      "source": "src/rapids_choir/_decision.py",
+      "find": "metrics.mean_observed_accuracy >= config.min_accuracy\n        and accuracy_pass",
+      "replace": "metrics.mean_observed_accuracy < config.min_accuracy\n        and accuracy_pass",
+      "probe": "tests/unit/test_decision_rules.py::test_decision_order_matches_frozen_r_fixture"
+    },
+    {
+      "mutation_id": "batch_eligibility",
+      "category": "batch_and_multiplicity",
+      "target": "eligible batch payload",
+      "source": "src/rapids_choir/_sampling.py",
+      "find": "cp.intersect1d(eligible(cluster1), eligible(cluster2), assume_unique=True)",
+      "replace": "cp.union1d(eligible(cluster1), eligible(cluster2))",
+      "probe": "tests/unit/test_source_mutation_probes.py::test_batch_eligibility_is_an_intersection"
+    },
+    {
+      "mutation_id": "multiplicity_correction",
+      "category": "batch_and_multiplicity",
+      "target": "adjusted alpha",
+      "source": "src/rapids_choir/tl/_pruning.py",
+      "find": "return alpha / len(accuracy)",
+      "replace": "return alpha",
+      "probe": "tests/unit/test_pruning_contract.py::test_overlapping_multiplicity_corrections_merge_closest_pair"
+    },
+    {
+      "mutation_id": "seed_derivation",
+      "category": "seed_and_sampling",
+      "target": "operation seed",
+      "source": "src/rapids_choir/_seeding.py",
+      "find": "digest.update(namespace.encode(\"utf-8\"))",
+      "replace": "digest.update(b\"\")",
+      "probe": "tests/unit/test_seeding.py::test_child_seed_is_stable_and_namespaced"
+    },
+    {
+      "mutation_id": "sampling_order",
+      "category": "seed_and_sampling",
+      "target": "round seed order",
+      "source": "src/rapids_choir/_sampling.py",
+      "find": "sampled2 = generator.permutation(cluster2)[:sampled_per_class]\n        sampled1 = generator.permutation(cluster1)[:sampled_per_class]",
+      "replace": "sampled1 = generator.permutation(cluster1)[:sampled_per_class]\n        sampled2 = generator.permutation(cluster2)[:sampled_per_class]",
+      "probe": "tests/unit/test_source_mutation_probes.py::test_compatibility_sampling_preserves_r_call_order"
+    },
+    {
+      "mutation_id": "resolution_stopping",
+      "category": "resolution_and_bridge",
+      "target": "resolution stop reason",
+      "source": "src/rapids_choir/tl/_hierarchy.py",
+      "find": "if current_count <= count0:\n                break",
+      "replace": "if current_count < count0:\n                break",
+      "probe": "tests/unit/test_hierarchy_contract.py::test_starting_resolution_searches_downward"
+    },
+    {
+      "mutation_id": "bridge_selection",
+      "category": "resolution_and_bridge",
+      "target": "bridge membership order",
+      "source": "src/rapids_choir/tl/_pruning.py",
+      "find": "rejected = first if first_score > second_score else second",
+      "replace": "rejected = first if first_score < second_score else second",
+      "probe": "tests/unit/test_source_mutation_probes.py::test_bridge_rejects_the_more_distant_partner"
+    },
+    {
+      "mutation_id": "singleton_relabelling",
+      "category": "singleton_and_pruning",
+      "target": "singleton output membership",
+      "source": "src/rapids_choir/tl/_hierarchy.py",
+      "find": "f\"singleton{index + 1}\" if str(value) == \"singleton\" else value",
+      "replace": "\"singleton1\" if str(value) == \"singleton\" else value",
+      "probe": "tests/unit/test_hierarchy_contract.py::test_singleton_relabelling_is_deterministic"
+    },
+    {
+      "mutation_id": "pruning_order",
+      "category": "singleton_and_pruning",
+      "target": "operation order",
+      "source": "src/rapids_choir/tl/_pruning.py",
+      "find": "range(tree.n_levels - 2, -1, -1)",
+      "replace": "range(tree.n_levels - 2, -1, 1)",
+      "probe": "tests/unit/test_pruning_contract.py::test_split_and_merge_produce_expected_final_labels"
+    },
+    {
+      "mutation_id": "membership_cache_hashing",
+      "category": "identity_and_staleness",
+      "target": "comparison membership hash",
+      "source": "src/rapids_choir/tl/_pruning.py",
+      "find": "return first, second",
+      "replace": "return left.label, right.label",
+      "probe": "tests/unit/test_pruning_contract.py::test_split_and_merge_produce_expected_final_labels"
+    },
+    {
+      "mutation_id": "stale_artifact_detection",
+      "category": "identity_and_staleness",
+      "target": "semantic artifact checksum",
+      "source": "src/rapids_choir/_semantic_trace.py",
+      "find": "if not source.is_file() or _sha256_file(source) != reference[\"sha256\"]:",
+      "replace": "if not source.is_file():",
+      "probe": "tests/unit/test_semantic_trace_contract.py::test_trace_reference_binds_checksum_run_id_and_row_count"
+    }
+  ]
+}

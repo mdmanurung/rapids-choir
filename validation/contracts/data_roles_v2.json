@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "contract_id": "publication-data-roles-v2",
+  "candidate_policy": {
+    "same_source_commit": true,
+    "same_runtime_digest_within_final_candidate": true,
+    "development_runtime_may_differ_from_final_candidate": true,
+    "prior_candidate_evidence_reuse": false,
+    "maximum_margin": 0.03
+  },
+  "roles": [
+    {
+      "role_id": "comparator_development",
+      "datasets": ["Simulated Dataset 1", "Simulated Dataset 26", "Simulated Dataset 51", "Simulated Dataset 76"],
+      "purpose": "profile selection and R-vs-R margin calibration",
+      "confirmation": false,
+      "publication_weight": "methods_development"
+    },
+    {
+      "role_id": "comparator_confirmation",
+      "datasets": ["Simulated Dataset 5", "Simulated Dataset 30", "Simulated Dataset 55", "Simulated Dataset 80", "Simulated Dataset 111"],
+      "purpose": "sealed computational parity confirmation",
+      "confirmation": true,
+      "open_once": true,
+      "publication_weight": "primary"
+    },
+    {
+      "role_id": "hierarchy_development",
+      "datasets": ["splatter-development-01", "splatter-development-02", "splatter-development-03", "splatter-development-04", "splatter-development-05", "splatter-development-06", "splatter-development-07", "splatter-development-08", "splatter-development-09", "splatter-development-10", "splatter-development-11", "splatter-development-12", "splatter-development-13", "splatter-development-14", "splatter-development-15", "splatter-development-16", "splatter-development-17", "splatter-development-18", "splatter-development-19", "splatter-development-20", "splatter-development-21"],
+      "purpose": "role-exclusive hierarchy development and R-vs-R margin calibration",
+      "confirmation": false,
+      "promotable": false,
+      "publication_weight": "methods_development"
+    },
+    {
+      "role_id": "hierarchy_parity_confirmation",
+      "datasets": ["Arigoni", "Chen"],
+      "purpose": "one-time computational parity confirmation",
+      "confirmation": true,
+      "open_once": true,
+      "independent_hierarchy_validation": false,
+      "external_scientific_validation": false,
+      "publication_weight": "primary"
+    },
+    {
+      "role_id": "corrected_case_studies",
+      "datasets": ["Stoeckius", "Kang", "pancreas"],
+      "purpose": "construct-specific secondary evidence",
+      "confirmation": false,
+      "may_determine_publication_eligibility": false,
+      "unfavorable_valid_results_retained": true,
+      "publication_weight": "secondary"
+    },
+    {
+      "role_id": "sant_reproduction",
+      "datasets": ["221 non-comparator simulations", "Kinker RNA", "Hao RNA-only", "Srivatsan RNA-only"],
+      "purpose": "reproduction accounting",
+      "confirmation": false,
+      "may_determine_publication_eligibility": false,
+      "publication_weight": "optional"
+    },
+    {
+      "role_id": "performance",
+      "datasets": ["six frozen 10000-gene workloads"],
+      "purpose": "tested-L40S performance characterization",
+      "confirmation": false,
+      "may_determine_publication_eligibility": false,
+      "publication_weight": "optional"
+    }
+  ]
+}

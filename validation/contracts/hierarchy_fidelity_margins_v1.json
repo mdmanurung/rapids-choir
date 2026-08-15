@@ -1,0 +1,19 @@
+{
+  "contract_id": "hierarchy-fidelity-margins-v1",
+  "deterministic_bounded_fields": [
+    "adjusted_alpha",
+    "previous_alpha"
+  ],
+  "deterministic_float": {
+    "atol": 1e-10,
+    "rtol": 1e-7
+  },
+  "eligible": false,
+  "maximum_margin": 0.03,
+  "quantile": 0.975,
+  "quantile_method": "linear",
+  "reason": "A new clean candidate must rerun R-vs-R development calibration.",
+  "schema_version": 1,
+  "status": "DEVELOPMENT_REQUIRED",
+  "stochastic_margins": {}
+}

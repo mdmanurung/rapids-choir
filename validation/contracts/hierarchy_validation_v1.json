@@ -1,0 +1,76 @@
+{
+  "candidate_policy": {
+    "candidate_drift": "stop",
+    "development_and_confirmation_may_not_be_pooled": true,
+    "prior_candidate_evidence_reuse": false
+  },
+  "confirmation": {
+    "datasets": [
+      {"dataset_id": "Arigoni", "open_once": true, "opened": false},
+      {"dataset_id": "Chen", "open_once": true, "opened": false}
+    ],
+    "each_dataset_must_pass_independently": true
+  },
+  "contract_id": "hierarchy-validation-v1",
+  "development": {
+    "expected_object_count": 21,
+    "reference_variability": {
+      "expected_calibration_record_count": 21,
+      "repeat_pair": "seed104729-vs-seed104759",
+      "seeds": [104729, 104759]
+    },
+    "objects": [
+      {"dataset_id": "splatter-development-01", "role": "starting-resolution-up"},
+      {"dataset_id": "splatter-development-02", "role": "starting-resolution-down"},
+      {"dataset_id": "splatter-development-03", "role": "starting-resolution-failure"},
+      {"dataset_id": "splatter-development-04", "role": "large-resolution-jump"},
+      {"dataset_id": "splatter-development-05", "role": "cluster-count-decrease"},
+      {"dataset_id": "splatter-development-06", "role": "silhouette-plateau"},
+      {"dataset_id": "splatter-development-07", "role": "maximum-cluster-stop"},
+      {"dataset_id": "splatter-development-08", "role": "complete-linkage-wide-split"},
+      {"dataset_id": "splatter-development-09", "role": "compatibility-reduction-quirk"},
+      {"dataset_id": "splatter-development-10", "role": "subtree-minimum-depth"},
+      {"dataset_id": "splatter-development-11", "role": "subtree-furthest-merge"},
+      {"dataset_id": "splatter-development-12", "role": "subtree-furthest-split"},
+      {"dataset_id": "splatter-development-13", "role": "subtree-neighbor-sweep"},
+      {"dataset_id": "splatter-development-14", "role": "subtree-singleton-terminal"},
+      {"dataset_id": "splatter-development-15", "role": "nonhierarchical-reconciliation"},
+      {"dataset_id": "splatter-development-16", "role": "bridge-merge-split"},
+      {"dataset_id": "splatter-development-17", "role": "bridge-split-merge"},
+      {"dataset_id": "splatter-development-18", "role": "bridge-split-split"},
+      {"dataset_id": "splatter-development-19", "role": "bonferroni-correction"},
+      {"dataset_id": "splatter-development-20", "role": "fdr-correction"},
+      {"dataset_id": "splatter-development-21", "role": "final-relabel-order"}
+    ],
+    "role_exclusive": true
+  },
+  "exact_requirements": [
+    "result schema",
+    "semantic event schema",
+    "topology invariants",
+    "operation types and order",
+    "same-seed operation decisions and reasons",
+    "comparator pair kind",
+    "bounded metric keys",
+    "provenance contract"
+  ],
+  "bounded_requirements": [
+    "backend-sensitive membership and semantic-record discordance is compared at every event and must remain within the frozen record_discordance margin",
+    "final-label one-minus-ARI, false-split, and false-merge metrics must each remain within their own frozen margin"
+  ],
+  "metric_policy": {
+    "maximum_margin": 0.03,
+    "metrics": [
+      "one_minus_ari",
+      "pairwise_false_split_rate",
+      "pairwise_false_merge_rate",
+      "record_discordance"
+    ],
+    "quantile": 0.975,
+    "quantile_method": "linear",
+    "source": "development R-vs-R repeats"
+  },
+  "reference": "CHOIR v0.3.0",
+  "schema_version": 1,
+  "status": "DESIGN_FROZEN"
+}

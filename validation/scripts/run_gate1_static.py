@@ -109,6 +109,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--log", type=Path, required=True)
     parser.add_argument("--candidate-manifest", type=Path, required=True)
+    parser.add_argument("--rscript", type=Path, required=True)
     args = parser.parse_args()
 
     root = args.root.resolve()
@@ -146,6 +147,36 @@ def main() -> None:
         ],
         [str(python.parent / "mypy"), "src/rapids_choir"],
         [str(python), "-m", "pytest", "tests/unit", "-q"],
+        [str(python), "validation/scripts/verify_parity_ledger.py"],
+        [str(python), "validation/scripts/run_mutation_controls.py"],
+        [
+            str(args.rscript.resolve()),
+            "--vanilla",
+            "-e",
+            (
+                "invisible(parse(file="
+                "'validation/scripts/run_reference_semantic_trace.R'))"
+            ),
+        ],
+        [
+            str(args.rscript.resolve()),
+            "--vanilla",
+            "-e",
+            (
+                "invisible(parse(file="
+                "'validation/scripts/generate_hierarchy_development_object.R'));"
+                "invisible(parse(file="
+                "'validation/scripts/run_reference_hierarchy.R'))"
+            ),
+        ],
+        [
+            str(args.rscript.resolve()),
+            "--vanilla",
+            "validation/scripts/run_reference_hierarchy.R",
+            "--self-test",
+            "--reference-root",
+            "validation/reference/choir_v0_3_0",
+        ],
         [str(python), "-m", "build", "--no-isolation"],
         [
             str(python),
@@ -191,6 +222,7 @@ def main() -> None:
         "generated_at": datetime.now(UTC).isoformat(),
         "commit": revision["stdout"].strip() if revision["returncode"] == 0 else None,
         "candidate": {
+            "commit": candidate["candidate_commit"],
             "attempt": candidate["candidate_attempt"],
             "runtime_tree_sha256": candidate["runtime_tree_sha256"],
             "manifest_sha256": file_hash(args.candidate_manifest),

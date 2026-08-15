@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import random
 import sys
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from gate2_common import (
     preserve_failure_record,
     validate_candidate_manifest,
 )
+from verify_parity_ledger import inventory, validate_ledger
 
 EXPECTED_FIXTURES = {
     "batch_eligibility.json",
@@ -31,6 +33,29 @@ EXPECTED_FIXTURES = {
     "session.json",
     "source_assertions.json",
     "subtree_distance_source.json",
+}
+
+ASSURANCE_CONTRACTS = {
+    "scope": "validation/contracts/v0_1_scope.json",
+    "publication_claims": "validation/contracts/publication_claims_v2.json",
+    "data_roles": "validation/contracts/data_roles_v2.json",
+    "ledger": "validation/contracts/parity_ledger_v1.json",
+    "mutations": "validation/contracts/parity_mutations_v1.json",
+    "semantic_schema": "validation/contracts/semantic_trace_v1.schema.json",
+    "hierarchy_result_schema": (
+        "validation/contracts/hierarchy_result_v1.schema.json"
+    ),
+    "hierarchy_margins": (
+        "validation/contracts/hierarchy_fidelity_margins_v1.json"
+    ),
+    "hierarchy_validation": "validation/contracts/hierarchy_validation_v1.json",
+    "hierarchy_development": (
+        "validation/contracts/hierarchy_development_objects_v1.json"
+    ),
+    "secondary_evidence": "validation/contracts/secondary_evidence_v1.json",
+    "sant_reproduction": "validation/contracts/sant_reproduction_v1.json",
+    "l40s_performance": "validation/contracts/l40s_performance_v1.json",
+    "release_candidate": "validation/contracts/release_candidate_v1.json",
 }
 
 
@@ -109,6 +134,305 @@ def verify_r_lock(root: Path, fixture_dir: Path) -> dict[str, str]:
     return versions
 
 
+def verify_assurance_contracts(root: Path) -> dict[str, Any]:
+    paths = {name: root / relative for name, relative in ASSURANCE_CONTRACTS.items()}
+    if missing := [name for name, path in paths.items() if not path.is_file()]:
+        raise RuntimeError(f"missing parity assurance contracts: {sorted(missing)}")
+    scope = read_json(paths["scope"])
+    if scope.get("schema_version") != 1 or scope.get("reference") != "CHOIR v0.3.0":
+        raise RuntimeError("v0.1 scope contract is invalid")
+    if "unimodal RNA" not in scope.get("included", []):
+        raise RuntimeError("v0.1 scope omits unimodal RNA")
+    publication = read_json(paths["publication_claims"])
+    eligibility = publication.get("publication_eligibility", {})
+    if (
+        publication.get("schema_version") != 2
+        or publication.get("target")
+        != {
+            "venue": "BMC Bioinformatics",
+            "article_type": "Software Article",
+            "exclusive": True,
+        }
+        or eligibility.get("same_candidate_required") is not True
+        or eligibility.get("maximum_stochastic_margin") != 0.03
+        or eligibility.get("secondary_results_cannot_determine_eligibility")
+        is not True
+        or publication.get("secondary_claims", {})
+        .get("corrected_case_studies", {})
+        .get("status")
+        != "secondary"
+        or "independent hierarchy validation"
+        not in publication.get("prohibited_claims", [])
+    ):
+        raise RuntimeError("narrow software-publication claim contract is invalid")
+    data_roles = read_json(paths["data_roles"])
+    roles = {
+        record.get("role_id"): record for record in data_roles.get("roles", [])
+    }
+    hierarchy_confirmation = roles.get("hierarchy_parity_confirmation", {})
+    corrected_cases = roles.get("corrected_case_studies", {})
+    if (
+        data_roles.get("schema_version") != 2
+        or data_roles.get("candidate_policy", {}).get("maximum_margin") != 0.03
+        or data_roles.get("candidate_policy", {}).get(
+            "same_runtime_digest_within_final_candidate"
+        )
+        is not True
+        or data_roles.get("candidate_policy", {}).get(
+            "development_runtime_may_differ_from_final_candidate"
+        )
+        is not True
+        or hierarchy_confirmation.get("datasets") != ["Arigoni", "Chen"]
+        or hierarchy_confirmation.get("purpose")
+        != "one-time computational parity confirmation"
+        or hierarchy_confirmation.get("independent_hierarchy_validation")
+        is not False
+        or hierarchy_confirmation.get("external_scientific_validation") is not False
+        or corrected_cases.get("publication_weight") != "secondary"
+        or corrected_cases.get("may_determine_publication_eligibility") is not False
+    ):
+        raise RuntimeError("publication data-role contract is invalid")
+    mutations = read_json(paths["mutations"])
+    mutation_ids = {
+        record.get("mutation_id") for record in mutations.get("mutations", [])
+    }
+    if (
+        mutations.get("schema_version") != 2
+        or mutations.get("strategy") != "temporary_source_patch"
+        or len(mutation_ids) != 12
+        or None in mutation_ids
+        or any(
+            set(record)
+            != {
+                "mutation_id",
+                "category",
+                "target",
+                "source",
+                "find",
+                "replace",
+                "probe",
+            }
+            for record in mutations.get("mutations", [])
+        )
+    ):
+        raise RuntimeError(
+            "mutation contract must contain 12 source-level controls"
+        )
+    semantic_schema = read_json(paths["semantic_schema"])
+    if semantic_schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
+        raise RuntimeError("semantic trace schema is not draft 2020-12")
+    hierarchy_result_schema = read_json(paths["hierarchy_result_schema"])
+    if (
+        hierarchy_result_schema.get("$schema")
+        != "https://json-schema.org/draft/2020-12/schema"
+        or hierarchy_result_schema.get("properties", {})
+        .get("schema_version", {})
+        .get("const")
+        != "rapids_choir.hierarchy-result/v1"
+    ):
+        raise RuntimeError("hierarchy result schema is not canonical")
+    margins = read_json(paths["hierarchy_margins"])
+    if (
+        margins.get("schema_version") != 1
+        or margins.get("maximum_margin") != 0.03
+        or margins.get("quantile") != 0.975
+        or margins.get("quantile_method") != "linear"
+    ):
+        raise RuntimeError("hierarchy margin contract is invalid")
+    hierarchy_validation = read_json(paths["hierarchy_validation"])
+    development_objects = hierarchy_validation.get("development", {}).get(
+        "objects", []
+    )
+    hierarchy_variability = hierarchy_validation.get("development", {}).get(
+        "reference_variability", {}
+    )
+    hierarchy_exact = hierarchy_validation.get("exact_requirements", [])
+    hierarchy_bounded = hierarchy_validation.get("bounded_requirements", [])
+    hierarchy_metric_policy = hierarchy_validation.get("metric_policy", {})
+    confirmation = hierarchy_validation.get("confirmation", {}).get(
+        "datasets", []
+    )
+    if (
+        hierarchy_validation.get("status") != "DESIGN_FROZEN"
+        or len(development_objects) != 21
+        or len({record.get("role") for record in development_objects}) != 21
+        or hierarchy_variability
+        != {
+            "expected_calibration_record_count": 21,
+            "repeat_pair": "seed104729-vs-seed104759",
+            "seeds": [104729, 104759],
+        }
+        or hierarchy_exact
+        != [
+            "result schema",
+            "semantic event schema",
+            "topology invariants",
+            "operation types and order",
+            "same-seed operation decisions and reasons",
+            "comparator pair kind",
+            "bounded metric keys",
+            "provenance contract",
+        ]
+        or not isinstance(hierarchy_bounded, list)
+        or len(hierarchy_bounded) != 2
+        or hierarchy_metric_policy.get("maximum_margin") != 0.03
+        or hierarchy_metric_policy.get("quantile") != 0.975
+        or hierarchy_metric_policy.get("quantile_method") != "linear"
+        or [record.get("dataset_id") for record in confirmation]
+        != ["Arigoni", "Chen"]
+        or any(record.get("opened") is not False for record in confirmation)
+    ):
+        raise RuntimeError("hierarchy validation design is not sealed")
+    hierarchy_development = read_json(paths["hierarchy_development"])
+    producer_objects = hierarchy_development.get("objects", [])
+    design_pairs = [
+        (record.get("dataset_id"), record.get("role"))
+        for record in development_objects
+    ]
+    producer_pairs = [
+        (record.get("dataset_id"), record.get("role"))
+        for record in producer_objects
+    ]
+    if (
+        hierarchy_development.get("schema_version") != 1
+        or hierarchy_development.get("generator") != "splatter::splatSimulate"
+        or hierarchy_development.get("evidence_role") != "development_only"
+        or hierarchy_development.get("promotable") is not False
+        or hierarchy_development.get("reference_seeds") != [104729, 104759]
+        or producer_pairs != design_pairs
+        or len({record.get("generator_seed") for record in producer_objects}) != 21
+        or any(
+            not isinstance(record.get("required_event"), dict)
+            for record in producer_objects
+        )
+    ):
+        raise RuntimeError("hierarchy development producer contract is invalid")
+    secondary = read_json(paths["secondary_evidence"])
+    if (
+        secondary.get("schema_version") != 1
+        or [record.get("dataset_id") for record in secondary.get("datasets", [])]
+        != ["Stoeckius", "Kang", "pancreas"]
+        or secondary.get("modes") != ["compatibility", "corrected"]
+        or secondary.get("reporting", {}).get(
+            "may_determine_publication_eligibility"
+        )
+        is not False
+    ):
+        raise RuntimeError("secondary-evidence protocol is invalid")
+    sant = read_json(paths["sant_reproduction"])
+    if (
+        sant.get("schema_version") != 1
+        or len(sant.get("analyses", [])) != 4
+        or set(sant.get("allowed_classifications", []))
+        != {"reproduced", "partial", "unverifiable", "failed"}
+        or sant.get("failure_blocks_primary_claim") is not False
+    ):
+        raise RuntimeError("Sant reproduction protocol is invalid")
+    performance = read_json(paths["l40s_performance"])
+    performance_workloads = performance.get("workloads", [])
+    performance_pair_order = performance.get("pair_order", {})
+    performance_schedules = performance_pair_order.get("schedule", {})
+    expected_performance_schedules: dict[str, list[str]] = {}
+    performance_generator = random.Random(104729)
+    for workload_id in performance_workloads:
+        schedule = ["r_then_python"] * 4 + ["python_then_r"] * 3
+        performance_generator.shuffle(schedule)
+        expected_performance_schedules[workload_id] = schedule
+    if (
+        performance.get("schema_version") != 1
+        or len(performance_workloads) != 6
+        or performance.get("genes_per_workload") != 10000
+        or performance.get("measured_pairs_per_workload") != 7
+        or performance_pair_order.get("method")
+        != "preregistered_seeded_permutation"
+        or performance_pair_order.get("seed") != 104729
+        or not isinstance(performance_schedules, dict)
+        or set(performance_schedules) != set(performance_workloads)
+        or performance_schedules != expected_performance_schedules
+        or any(
+            not isinstance(schedule, list)
+            or len(schedule) != 7
+            or schedule.count("r_then_python") != 4
+            or schedule.count("python_then_r") != 3
+            for schedule in performance_schedules.values()
+        )
+        or performance.get("memory", {}).get("report_by_implementation")
+        is not True
+        or performance.get("correctness", {}).get(
+            "per_pair_content_bound_report"
+        )
+        is not True
+        or performance.get("claim_policy", {}).get(
+            "every_workload_lower_bound_minimum"
+        )
+        != 2.0
+        or performance.get("claim_policy", {}).get("cross_hardware_claim")
+        is not False
+    ):
+        raise RuntimeError("L40S performance protocol is invalid")
+    release = read_json(paths["release_candidate"])
+    if (
+        release.get("schema_version") != 1
+        or len(release.get("required_artifacts", [])) != 13
+        or release.get("parity_promotion_required") is not True
+        or release.get("clean_checkout_reproduction_required") is not True
+        or set(release.get("external_actions", {}).values())
+        != {"separate_authorization_required"}
+    ):
+        raise RuntimeError("release-candidate protocol is invalid")
+    ledger = read_json(paths["ledger"])
+    functions = inventory(
+        root / "validation/reference/choir_v0_3_0/R", root
+    )
+    errors = validate_ledger(ledger, functions=functions, repo_root=root)
+    if errors:
+        raise RuntimeError(f"parity ledger verification failed: {errors}")
+    entries = ledger["entries"]
+    unavailable = [
+        entry["entry_id"]
+        for entry in entries
+        if entry["classification"] == "unavailable_input"
+        or any(
+            branch["classification"] == "unavailable_input"
+            for branch in entry["meaningful_branches"]
+        )
+    ]
+    pending_evidence = [
+        entry["entry_id"]
+        for entry in entries
+        if entry["evidence"]["status"] == "pending"
+    ]
+    promotion_ready = (
+        not unavailable
+        and not pending_evidence
+        and margins.get("status") == "FROZEN"
+        and margins.get("eligible") is True
+    )
+    return {
+        "contracts": {
+            name: {
+                "path": path.relative_to(root).as_posix(),
+                "sha256": sha256(path),
+            }
+            for name, path in sorted(paths.items())
+        },
+        "r_function_count": len(functions),
+        "ledger_entry_count": len(entries),
+        "unclassified_count": 0,
+        "unavailable_entry_ids": sorted(set(unavailable)),
+        "pending_evidence_entry_ids": sorted(set(pending_evidence)),
+        "margin_status": margins.get("status"),
+        "publication_contract": publication["contract_id"],
+        "data_role_contract": data_roles["contract_id"],
+        "mutation_strategy": mutations["strategy"],
+        "hierarchy_producer_count": len(producer_objects),
+        "secondary_dataset_count": len(secondary["datasets"]),
+        "sant_analysis_count": len(sant["analyses"]),
+        "performance_workload_count": len(performance["workloads"]),
+        "promotion_ready": promotion_ready,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True, type=Path)
@@ -123,6 +447,7 @@ def main() -> None:
     fixture_file_count = verify_fixture_manifest(root, fixture_dir)
     versions = verify_r_lock(root, fixture_dir)
     candidate = validate_candidate_manifest(root, args.candidate_manifest)
+    assurance = verify_assurance_contracts(root)
 
     assertions = read_json(fixture_dir / "source_assertions.json")
     failed = sorted(name for name, passed in assertions.items() if not passed)
@@ -160,6 +485,7 @@ def main() -> None:
         "r_version": "4.5.1",
         "r_packages": versions,
         "holdout_sealed": True,
+        "parity_assurance": assurance,
         "limitations": [
             "Parent dataset archive is frozen by its Zenodo MD5; selected member "
             "SHA-256 values are required before calibration.",

@@ -59,6 +59,7 @@ def main() -> None:
     candidate = validate_candidate_manifest(root, args.candidate_manifest)
     evidence = verify_profile_seal(root, args.profile)
     evidence["candidate"] = {
+        "commit": candidate["candidate_commit"],
         "attempt": candidate["candidate_attempt"],
         "runtime_tree_sha256": candidate["runtime_tree_sha256"],
         "manifest_sha256": file_hash(args.candidate_manifest),

@@ -1,0 +1,31 @@
+{
+  "claim": "A faithful Python reimplementation of the unimodal-RNA CHOIR v0.3.0 algorithm in compatibility mode within prespecified fidelity margins.",
+  "excluded": [
+    "plotting",
+    "multimodal analysis",
+    "Seurat adapters",
+    "SingleCellExperiment adapters",
+    "ArchR adapters",
+    "count splitting",
+    "pre-generated-cluster tree inference"
+  ],
+  "included": [
+    "unimodal RNA",
+    "AnnData",
+    "deterministic preprocessing",
+    "comparator",
+    "hierarchy construction",
+    "pruning and merging",
+    "singleton handling",
+    "final labels",
+    "complete records and provenance"
+  ],
+  "prohibited_claims": [
+    "bitwise identity",
+    "source-code identity",
+    "drop-in R-package equivalence",
+    "parity for excluded functionality"
+  ],
+  "reference": "CHOIR v0.3.0",
+  "schema_version": 1
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "contract_id": "corrected-case-studies-v1",
+  "candidate_policy": "same_final_candidate",
+  "modes": ["compatibility", "corrected"],
+  "datasets": [
+    {
+      "dataset_id": "Stoeckius",
+      "constructs": [
+        "species_spike_precision",
+        "species_spike_recall",
+        "species_spike_jaccard",
+        "adt_concordance",
+        "sorted_cd8_concordance"
+      ]
+    },
+    {
+      "dataset_id": "Kang",
+      "constructs": [
+        "donor_association",
+        "treatment_association",
+        "donor_level_summary_complete"
+      ]
+    },
+    {
+      "dataset_id": "pancreas",
+      "constructs": [
+        "per_study_annotation_concordance",
+        "per_donor_annotation_concordance",
+        "study_mixing",
+        "epsilon_population_recovery"
+      ]
+    }
+  ],
+  "reporting": {
+    "each_construct_separate": true,
+    "unfavorable_valid_results_retained": true,
+    "pooled_biological_validity_claim": false,
+    "may_determine_publication_eligibility": false,
+    "runtime_or_schema_failure_invalidates_candidate": true
+  }
+}

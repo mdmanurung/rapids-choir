@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "contract_id": "sant-core-reproduction-v1",
+  "analyses": [
+    "221_non_comparator_simulations",
+    "Kinker_RNA",
+    "Hao_RNA_only",
+    "Srivatsan_RNA_only"
+  ],
+  "allowed_classifications": [
+    "reproduced",
+    "partial",
+    "unverifiable",
+    "failed"
+  ],
+  "all_attempts_retained": true,
+  "completeness_is_optional_claim": true,
+  "failure_blocks_primary_claim": false
+}
