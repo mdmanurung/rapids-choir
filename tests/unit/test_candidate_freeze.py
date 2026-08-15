@@ -62,6 +62,7 @@ def test_candidate_freeze_records_clean_runtime_identity(tmp_path: Path) -> None
     assert payload["candidate_attempt"] == 2
     assert payload["dirty_state"]["tracked"] is False
     assert payload["workflow_sha256"] == MODULE.file_hash(snakefile)
+    assert payload["runtime_scope"] == "all_tracked_repository_files"
 
 
 def test_candidate_freeze_rejects_tracked_drift(tmp_path: Path) -> None:

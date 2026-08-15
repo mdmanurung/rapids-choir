@@ -15,6 +15,21 @@ frozen_reservations:
   comparator_confirm:
     l40s_hours: 12.5
     scratch_bytes: 250000000000
+  hierarchy_development:
+    l40s_hours: 48.0
+    scratch_bytes: 300000000000
+  hierarchy_confirm:
+    l40s_hours: 8.0
+    scratch_bytes: 150000000000
+  corrected_case_studies:
+    l40s_hours: 20.0
+    scratch_bytes: 300000000000
+  sant_reproduction:
+    l40s_hours: 15.0
+    scratch_bytes: 250000000000
+  l40s_performance:
+    l40s_hours: 24.0
+    scratch_bytes: 200000000000
 
 policy:
   evidence_reduction_allowed: false

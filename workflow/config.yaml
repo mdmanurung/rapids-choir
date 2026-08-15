@@ -15,7 +15,54 @@ authorization:
   comparator_confirm:
     manifest: workflow/authorization/comparator_confirm.json
     signature: workflow/authorization/comparator_confirm.sig
+  hierarchy_confirm:
+    Arigoni:
+      manifest: workflow/authorization/hierarchy_arigoni.json
+      signature: workflow/authorization/hierarchy_arigoni.sig
+    Chen:
+      manifest: workflow/authorization/hierarchy_chen.json
+      signature: workflow/authorization/hierarchy_chen.sig
 
+# These paths are intentionally absent until the custodian stages each sealed
+# computational-parity input. The workflow will not infer or download them.
+hierarchy_confirmation:
+  Arigoni:
+    h5ad: null
+    recipe: null
+    python_config: null
+    custody_record: null
+  Chen:
+    h5ad: null
+    recipe: null
+    python_config: null
+    custody_record: null
+
+# Guarded publication/release targets consume reviewed, immutable artifacts.
+# Null values make those targets fail closed without affecting the safe DAG.
+publication_artifacts:
+  claim_to_evidence_manifest: null
+  manuscript: null
+  figures_manifest: null
+  tables_manifest: null
+  supplement: null
+  negative_results_appendix: null
+  bmc_package: null
+  venue_requirements_audit: null
+
+release_artifacts:
+  wheel: null
+  sdist: null
+  oci_image_manifest: null
+  apptainer_definition: null
+  documentation: null
+  smoke_data: null
+  sbom: null
+  release_manifest: null
+  checksums: null
+  rights_audit: null
+  credential_audit: null
+  restricted_data_audit: null
+  stale_evidence_audit: null
 data:
   raw_root: /exports/archive/hg-funcgenom-research/mdmanurung/rapids-choir-data/raw
   work_root: /exports/para-lipg-hpc/mdmanurung/rapids-choir-data
