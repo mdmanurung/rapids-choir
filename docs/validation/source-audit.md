@@ -16,10 +16,10 @@ terminology used by `rapids-choir`. The executable source snapshot is under
 |---|---|---|
 | `ComparisonUtils.R` | `.runPermutationTest`, `.runRF`, record and distance helpers | Comparator behavior ported; R-only implementations remain validation-only. |
 | `compareClusters.R` | `compareClusters` | Implemented as `rapids_choir.tl.compare_clusters` and `ChoirComparator`. |
-| `CHOIR.R` | `CHOIR` | Implemented only after the Gate 2 hard stop passes. |
-| `buildTree.R` | `buildTree` | Root and node-local hierarchy behavior assigned to Gate 3. |
-| `pruneTree.R` | `pruneTree` | Bottom-up pruning behavior assigned to Gate 3. |
-| `TreeUtils.R` | dimensional reduction, resolution loops, hierarchy repair, subtree growth | Louvain/SNN portions assigned to Gate 3; Seurat, MRtree, ATAC, and multi-modal implementations are validation references only. |
+| `CHOIR.R` | `CHOIR` | Unimodal-RNA AnnData orchestration is implemented; cross-language evidence remains pending. |
+| `buildTree.R` | `buildTree` | Root, node-local, and automatic subtree hierarchy behavior is implemented under D020. |
+| `pruneTree.R` | `pruneTree` | Bottom-up sibling/bridge pruning, multiplicity, singleton handling, and final labels are implemented. |
+| `TreeUtils.R` | dimensional reduction, resolution loops, hierarchy repair, subtree growth | In-scope RNA, Louvain/SNN, hierarchy, and optimization behavior is mapped; Seurat adapters, MRtree as a public input, ATAC, and multimodal behavior remain excluded. |
 | `HelperUtils.R` | object adapters, records, distance and naming helpers | AnnData adapters and records are ported; R object adapters are unsupported. |
 | `ValidationUtils.R` | `.validInput` | Replaced by typed Python validation with explicit corrected/compatibility policies. |
 | `buildParentTree.R`, `combineTrees.R` | atlas-scale split/combine workflow | Deferred; multi-object/atlas stitching is not v0.1 functionality. |
@@ -202,3 +202,23 @@ licenses, archive checksums, seeds, and acceptance criteria are frozen in
 
 Gate 0 passes only when Snakemake regenerates all fixture outputs under R
 4.5.1, verifies the source snapshot, and produces a matching manifest.
+
+## Exhaustive parity ledger and static inventory
+
+`validation/contracts/parity_ledger_v1.json` maps every one of the 45 functions
+in the frozen R snapshot to its semantic responsibility, source span and
+digest, Python components, meaningful branches, state transition, comparison
+rule, tests, and content-bound evidence. The only allowed classifications are
+`matched_compatibility`, `intentional_corrected_divergence`, `excluded_v0_1`,
+and `unavailable_input`; the verifier rejects missing, duplicate, unclassified,
+or unexplained entries.
+
+After hierarchy implementation, a fresh `ccc-rs` scan found 45 R functions and
+the ledger contained the same 45 symbols, with no symbol present on only one
+side. This is an inventory reconciliation only. Complexity ratios, inferred
+call graphs, and argument-flow output are not parity evidence.
+
+Pending and `unavailable_input` records identify development evidence still
+needed; they do not authorize a parity claim. Candidate-specific hierarchy
+traces can resolve those records only after the frozen 21-object development
+design and the two independent confirmation datasets pass.

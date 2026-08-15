@@ -6,6 +6,7 @@
 .snakemake/
 build/
 dist/
+docs/_build/
 htmlcov/
 *.egg-info/
 *.py[cod]

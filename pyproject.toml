@@ -26,19 +26,28 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+docs = [
+  "furo>=2024.8.6",
+  "myst-parser>=4,<5",
+  "sphinx>=8.2,<10",
+]
 test = [
-  "build>=1.2",
-  "mypy>=1.15",
-  "pytest>=8.3",
-  "pytest-cov>=6",
-  "ruff>=0.11",
+  "build>=1.2,<2",
+  "jsonschema>=4.23,<5",
+  "mypy>=1.15,<3",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.11,<1",
+]
+validation = [
+  "jsonschema>=4.23,<5",
 ]
 
 [project.scripts]
 rapids-choir = "rapids_choir.cli:main"
 
 [project.urls]
-Documentation = "https://github.com/mdmanurung/rapids-choir"
+Documentation = "https://mdmanurung.github.io/rapids-choir/"
 Issues = "https://github.com/mdmanurung/rapids-choir/issues"
 Source = "https://github.com/mdmanurung/rapids-choir"
 
