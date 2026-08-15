@@ -20,15 +20,16 @@ conda run --prefix .venv/rapids-choir \
 
 Do not start an analysis if this command fails.
 
-:::{warning}
+```{warning}
 The package is pre-alpha software under gated scientific validation. It has no
 authorized parity, performance, or release claim.
-:::
+```
 
 ```{toctree}
 :maxdepth: 2
 :hidden:
 
+self
 quick-start
 detailed-step-by-step
 api
