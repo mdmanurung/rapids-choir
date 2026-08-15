@@ -26,10 +26,12 @@ The public analysis surface is:
 import rapids_choir as rc
 
 rc.pp.prepare_rna(adata)  # mutates and returns None; pass copy=True for a copy
-result = rc.tl.choir(adata, batch_key="donor", rules="corrected")
+result = rc.CHOIR(adata, batch_labels="donor", rules="corrected")
 ```
 
-`choir` always returns a `ChoirResult`. It rejects output collisions unless
+`CHOIR` retains R CHOIR names for shared scientific parameters and adds
+explicit AnnData and GPU controls. It always returns a `ChoirResult`. It
+rejects output collisions unless
 `overwrite=True`, and optional Parquet records are content-bound to their run
 ID, schema, row count, input checksum, and file checksum.
 

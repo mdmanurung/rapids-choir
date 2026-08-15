@@ -19,20 +19,30 @@ release = __version__
 extensions = [
     "myst_parser",
     "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
-    "sphinx.ext.viewcode",
 ]
 
 source_suffix = {
     ".md": "markdown",
     ".rst": "restructuredtext",
 }
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "wayfinder/**"]
+exclude_patterns = [
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "architecture/**",
+    "decisions/**",
+    "validation/**",
+    "wayfinder/**",
+    "cli.md",
+    "contributing.md",
+    "getting-started.md",
+    "overview.md",
+    "user-guide.md",
+]
 
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"
-autosummary_generate = True
 myst_heading_anchors = 3
 
 html_theme = "furo"
