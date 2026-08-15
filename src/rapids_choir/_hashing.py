@@ -109,7 +109,7 @@ def anndata_input_hashes(
     use_rep: str,
     nn_graph_key: str,
     snn_graph_key: str,
-    feature_mask_key: str,
+    feature_mask_key: str | None,
     batch_key: str | None,
 ) -> tuple[str, dict[str, str]]:
     """Return a complete identity for every content-bearing hierarchy input."""
@@ -121,7 +121,9 @@ def anndata_input_hashes(
         "nn_graph": hash_matrix(adata.obsp[nn_graph_key]),
         "snn_graph": hash_matrix(adata.obsp[snn_graph_key]),
         "feature_mask": hash_vector(
-            adata.var[feature_mask_key].to_numpy(dtype=bool, copy=False)
+            np.ones(adata.n_vars, dtype=bool)
+            if feature_mask_key is None
+            else adata.var[feature_mask_key].to_numpy(dtype=bool, copy=False)
         ),
         "obs_names": hash_vector(np.asarray(adata.obs_names, dtype=str)),
         "var_names": hash_vector(np.asarray(adata.var_names, dtype=str)),

@@ -76,7 +76,9 @@ def _ingest_inputs(adata: Any, config: ChoirConfig) -> _DeviceInputs:
         policy=input_policy,
     )
     feature_mask, mask_bytes = _as_device_vector(
-        adata.var[config.feature_mask_key].to_numpy(dtype=bool, copy=False),
+        np.ones(adata.n_vars, dtype=bool)
+        if config.feature_mask_key is None
+        else adata.var[config.feature_mask_key].to_numpy(dtype=bool, copy=False),
         name="feature_mask",
         dtype=cp.bool_,
         policy=input_policy,
@@ -287,6 +289,8 @@ def _prepare_if_requested(adata: Any, config: ChoirConfig) -> None:
     preprocessing = config.preprocessing
     if preprocessing is None:
         return
+    if config.feature_mask_key is None:  # guarded by ChoirConfig
+        raise ValueError("built-in preprocessing requires a feature mask key")
     prepare_rna(
         adata,
         counts_layer=preprocessing.counts_layer,
@@ -548,7 +552,7 @@ def choir(
     use_rep: str = "X_pca",
     nn_graph_key: str = "choir_nn",
     snn_graph_key: str = "choir_snn",
-    feature_mask_key: str = "highly_variable",
+    feature_mask_key: str | None = "highly_variable",
     batch_key: str | None = None,
     preprocessing: RNAConfig | None = None,
     rules: str = "corrected",

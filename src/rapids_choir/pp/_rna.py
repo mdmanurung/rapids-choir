@@ -365,7 +365,7 @@ def validate_prepared_rna(
     use_rep: str,
     nn_graph_key: str,
     snn_graph_key: str,
-    feature_mask_key: str,
+    feature_mask_key: str | None,
     batch_key: str | None,
     require_manifest: bool = False,
 ) -> dict[str, Any] | None:
@@ -391,15 +391,17 @@ def validate_prepared_rna(
             )
     if nn_graph_key == snn_graph_key:
         raise PreparedInputError("NN and SNN graph keys must be distinct")
-    if feature_mask_key not in adata.var:
-        raise PreparedInputError(
-            f"AnnData feature mask {feature_mask_key!r} does not exist"
-        )
-    feature_mask = adata.var[feature_mask_key]
-    if len(feature_mask) != n_vars or bool(feature_mask.isna().any()):
-        raise PreparedInputError("prepared feature mask is missing or misaligned")
-    if not bool(feature_mask.astype(bool).any()):
-        raise PreparedInputError("prepared feature mask selects no features")
+    feature_mask = None
+    if feature_mask_key is not None:
+        if feature_mask_key not in adata.var:
+            raise PreparedInputError(
+                f"AnnData feature mask {feature_mask_key!r} does not exist"
+            )
+        feature_mask = adata.var[feature_mask_key]
+        if len(feature_mask) != n_vars or bool(feature_mask.isna().any()):
+            raise PreparedInputError("prepared feature mask is missing or misaligned")
+        if not bool(feature_mask.astype(bool).any()):
+            raise PreparedInputError("prepared feature mask selects no features")
     _batch_codes(adata, batch_key)
 
     manifest = adata.uns.get(PREPARED_UNS_KEY)
@@ -415,9 +417,10 @@ def validate_prepared_rna(
         "use_rep": use_rep,
         "nn_graph_key": nn_graph_key,
         "snn_graph_key": snn_graph_key,
-        "feature_mask_key": feature_mask_key,
         "batch_key": batch_key,
     }
+    if feature_mask_key is not None:
+        expected_keys["feature_mask_key"] = feature_mask_key
     for name, expected in expected_keys.items():
         if parameters.get(name) != expected:
             raise StaleArtifactError(
@@ -426,6 +429,12 @@ def validate_prepared_rna(
     counts_layer = parameters.get("counts_layer")
     if not isinstance(counts_layer, str) or counts_layer not in adata.layers:
         raise StaleArtifactError("prepared counts layer is absent")
+    manifest_feature_mask = feature_mask
+    if manifest_feature_mask is None:
+        prepared_mask_key = parameters.get("feature_mask_key")
+        if not isinstance(prepared_mask_key, str) or prepared_mask_key not in adata.var:
+            raise StaleArtifactError("prepared RNA feature mask is absent")
+        manifest_feature_mask = adata.var[prepared_mask_key]
     batches = _batch_codes(adata, batch_key)
     input_hashes = {
         "counts": hash_matrix(adata.layers[counts_layer]),
@@ -437,7 +446,7 @@ def validate_prepared_rna(
     output_hashes = {
         "normalized": hash_matrix(matrix),
         "feature_mask": hash_vector(
-            feature_mask.to_numpy(dtype=bool, copy=False)
+            manifest_feature_mask.to_numpy(dtype=bool, copy=False)
         ),
         "representation": hash_matrix(adata.obsm[use_rep]),
         "nn_graph": hash_matrix(adata.obsp[nn_graph_key]),

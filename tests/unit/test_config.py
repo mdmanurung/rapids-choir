@@ -44,6 +44,11 @@ def test_builtin_preprocessing_layer_must_match_analysis_layer() -> None:
         )
 
 
+def test_all_feature_mode_rejects_builtin_variable_feature_preparation() -> None:
+    with pytest.raises(InvalidConfigurationError, match="feature_set='var'"):
+        ChoirConfig(feature_mask_key=None, preprocessing=RNAConfig())
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [

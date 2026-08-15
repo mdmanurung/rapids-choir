@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from . import get, pp, tl
+from ._api import CHOIR, compareClusters, getRecords
 from ._enums import Decision, InputPolicy, Multiplicity, ReasonCode, RuleSet
 from .config import ChoirConfig, ComparisonConfig, RFProfile, RNAConfig
 from .results import ChoirResult, ComparisonResult
@@ -11,6 +12,7 @@ from .tree import HierarchyNode, HierarchyTree
 __version__ = "0.1.0.dev0"
 
 __all__ = [
+    "CHOIR",
     "ChoirConfig",
     "ChoirResult",
     "ComparisonConfig",
@@ -24,7 +26,9 @@ __all__ = [
     "RNAConfig",
     "ReasonCode",
     "RuleSet",
+    "compareClusters",
     "get",
+    "getRecords",
     "pp",
     "tl",
 ]

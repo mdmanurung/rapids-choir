@@ -272,7 +272,7 @@ class ChoirConfig:
     use_rep: str = "X_pca"
     nn_graph_key: str = "choir_nn"
     snn_graph_key: str = "choir_snn"
-    feature_mask_key: str = "highly_variable"
+    feature_mask_key: str | None = "highly_variable"
     batch_key: str | None = None
     preprocessing: RNAConfig | None = None
     rules: RuleSet | str = RuleSet.CORRECTED
@@ -298,10 +298,13 @@ class ChoirConfig:
             "use_rep",
             "nn_graph_key",
             "snn_graph_key",
-            "feature_mask_key",
         ):
             if not getattr(self, name):
                 raise InvalidConfigurationError(f"{name} must be explicit")
+        if self.feature_mask_key is not None and not self.feature_mask_key:
+            raise InvalidConfigurationError(
+                "feature_mask_key must be non-empty when supplied"
+            )
         if self.nn_graph_key == self.snn_graph_key:
             raise InvalidConfigurationError("NN and SNN graph keys must be distinct")
         if self.batch_key is not None and not self.batch_key:
@@ -316,6 +319,10 @@ class ChoirConfig:
         ):
             raise InvalidConfigurationError(
                 "layer must match preprocessing.normalized_layer"
+            )
+        if self.preprocessing is not None and self.feature_mask_key is None:
+            raise InvalidConfigurationError(
+                "built-in preprocessing requires feature_set='var'"
             )
         if self.comparison is not None and not isinstance(
             self.comparison, ComparisonConfig
