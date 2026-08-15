@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from rapids_choir import ChoirConfig, ComparisonConfig, RFProfile, RuleSet
+from rapids_choir import ChoirConfig, ComparisonConfig, RFProfile, RNAConfig, RuleSet
 from rapids_choir.config import split_round_count
 from rapids_choir.exceptions import InvalidConfigurationError, MissingCalibrationError
 
@@ -34,6 +34,35 @@ def test_corrected_rules_reject_odd_iterations(requested: int) -> None:
 def test_graph_roles_must_be_distinct() -> None:
     with pytest.raises(InvalidConfigurationError, match="must be distinct"):
         ChoirConfig(nn_graph_key="same", snn_graph_key="same")
+
+
+def test_builtin_preprocessing_layer_must_match_analysis_layer() -> None:
+    with pytest.raises(InvalidConfigurationError, match="normalized_layer"):
+        ChoirConfig(
+            layer="log1p",
+            preprocessing=RNAConfig(normalized_layer="prepared"),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("device", "cuda:1", "devices"),
+        ("random_state", 2, "random states"),
+        ("vram_headroom", 0.1, "VRAM headroom"),
+    ],
+)
+def test_explicit_comparator_must_share_runtime_identity(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    comparison = ComparisonConfig(
+        rf_profile=RFProfile(),
+        **{field: value},  # type: ignore[arg-type]
+    )
+    with pytest.raises(InvalidConfigurationError, match=message):
+        ChoirConfig(comparison=comparison)
 
 
 def test_rf_calibration_grid_is_closed() -> None:

@@ -56,3 +56,15 @@ class RecordsUnavailableError(RapidsChoirError, LookupError):
 
 class MissingCalibrationError(RapidsChoirError, RuntimeError):
     """No valid frozen RF calibration profile is available."""
+
+
+class ArtifactCollisionError(RapidsChoirError, FileExistsError):
+    """A requested output would replace an existing analysis artifact."""
+
+
+class StaleArtifactError(RapidsChoirError, RuntimeError):
+    """Stored provenance no longer matches a content-bearing input."""
+
+
+class PreparedInputError(RapidsChoirError, ValueError):
+    """AnnData is missing or has invalid prepared-input state."""

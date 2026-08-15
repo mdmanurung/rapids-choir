@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from ._enums import Decision, ReasonCode, RuleSet
+from .tree import HierarchyTree
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +91,10 @@ class ComparisonResult:
     timings: TimingRecord
     memory: MemoryRecord
     compatibility_aliases: dict[str, Any] = field(default_factory=dict)
+    pair_kind: str = "sibling"
+    input_membership_sha256: tuple[str, str] | None = None
+    root_distance: float | None = None
+    subtree_distance: float | None = None
 
     def to_record(self) -> dict[str, Any]:
         return asdict(self)
@@ -97,11 +102,12 @@ class ComparisonResult:
 
 @dataclass(frozen=True, slots=True)
 class RecordsManifest:
-    schema_version: int
+    schema_version: str
     uri: str
     sha256: str
     row_count: int
     run_id: str
+    input_sha256: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,5 +116,5 @@ class ChoirResult:
     labels: Any
     records: tuple[ComparisonResult, ...]
     provenance: dict[str, Any]
+    tree: HierarchyTree
     records_manifest: RecordsManifest | None = None
-    tree: Any | None = None

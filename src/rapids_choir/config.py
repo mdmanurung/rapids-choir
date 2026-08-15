@@ -244,7 +244,7 @@ class ComparisonConfig:
 class RNAConfig:
     """Explicit optional RNA preprocessing; no preprocessing is implicit."""
 
-    counts_layer: str
+    counts_layer: str = "counts"
     normalized_layer: str = "log1p"
     target_sum: float = 10_000.0
     hvg_flavor: str = "seurat_v3"
@@ -273,12 +273,18 @@ class ChoirConfig:
     nn_graph_key: str = "choir_nn"
     snn_graph_key: str = "choir_snn"
     feature_mask_key: str = "highly_variable"
+    batch_key: str | None = None
     preprocessing: RNAConfig | None = None
     rules: RuleSet | str = RuleSet.CORRECTED
     multiplicity: Multiplicity | str = Multiplicity.BONFERRONI
+    max_clusters: int | None = None
+    min_cluster_depth: int = 2_000
+    group_singletons: bool = True
+    max_resolution_steps: int = 512
     input_policy: InputPolicy | str = InputPolicy.TRANSFER_ONCE
     records_path: str | None = None
     inplace: bool = True
+    overwrite: bool = False
     device: str = "cuda:0"
     vram_headroom: float = 0.20
     random_state: int = 1
@@ -298,14 +304,70 @@ class ChoirConfig:
                 raise InvalidConfigurationError(f"{name} must be explicit")
         if self.nn_graph_key == self.snn_graph_key:
             raise InvalidConfigurationError("NN and SNN graph keys must be distinct")
+        if self.batch_key is not None and not self.batch_key:
+            raise InvalidConfigurationError("batch_key must be non-empty when supplied")
+        if self.preprocessing is not None and not isinstance(
+            self.preprocessing, RNAConfig
+        ):
+            raise InvalidConfigurationError("preprocessing must be an RNAConfig")
+        if (
+            self.preprocessing is not None
+            and self.layer != self.preprocessing.normalized_layer
+        ):
+            raise InvalidConfigurationError(
+                "layer must match preprocessing.normalized_layer"
+            )
+        if self.comparison is not None and not isinstance(
+            self.comparison, ComparisonConfig
+        ):
+            raise InvalidConfigurationError("comparison must be a ComparisonConfig")
+        if self.max_clusters is not None:
+            _positive_int("max_clusters", self.max_clusters)
+        _positive_int("min_cluster_depth", self.min_cluster_depth)
+        _positive_int("max_resolution_steps", self.max_resolution_steps)
+        if not isinstance(self.group_singletons, bool):
+            raise InvalidConfigurationError("group_singletons must be boolean")
+        if not isinstance(self.inplace, bool) or not isinstance(self.overwrite, bool):
+            raise InvalidConfigurationError("inplace and overwrite must be boolean")
         try:
             rules = RuleSet(self.rules)
-            multiplicity = Multiplicity(self.multiplicity)
+            multiplicity = Multiplicity(
+                "bh" if self.multiplicity == "fdr" else self.multiplicity
+            )
             input_policy = InputPolicy(self.input_policy)
         except ValueError as error:
             raise InvalidConfigurationError(str(error)) from error
         object.__setattr__(self, "rules", rules)
         object.__setattr__(self, "multiplicity", multiplicity)
         object.__setattr__(self, "input_policy", input_policy)
-        if self.comparison is not None and self.comparison.rules is not rules:
-            raise InvalidConfigurationError("choir and comparison rule sets must agree")
+        if input_policy is not InputPolicy.TRANSFER_ONCE:
+            raise InvalidConfigurationError(
+                "AnnData CHOIR requires input_policy='transfer_once'"
+            )
+        if not self.device.startswith("cuda:") or not self.device[5:].isdigit():
+            raise InvalidConfigurationError("device must have the form 'cuda:<index>'")
+        if not isfinite(self.vram_headroom) or not 0 <= self.vram_headroom < 1:
+            raise InvalidConfigurationError("vram_headroom must be in [0, 1)")
+        if isinstance(self.random_state, bool) or not isinstance(
+            self.random_state, int
+        ):
+            raise InvalidConfigurationError("random_state must be an integer")
+        if self.records_path is not None and not self.records_path:
+            raise InvalidConfigurationError("records_path must be non-empty")
+        if self.comparison is not None:
+            if self.comparison.rules is not rules:
+                raise InvalidConfigurationError(
+                    "choir and comparison rule sets must agree"
+                )
+            if self.comparison.device != self.device:
+                raise InvalidConfigurationError(
+                    "choir and comparison devices must agree"
+                )
+            if self.comparison.random_state != self.random_state:
+                raise InvalidConfigurationError(
+                    "choir and comparison random states must agree"
+                )
+            if self.comparison.vram_headroom != self.vram_headroom:
+                raise InvalidConfigurationError(
+                    "choir and comparison VRAM headroom must agree"
+                )
